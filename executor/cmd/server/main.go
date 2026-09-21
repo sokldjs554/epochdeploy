@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"epochdeploy/executor/internal/core"
+	"github.com/gin-gonic/gin"
 )
 
 type executeRequest struct {
@@ -57,6 +58,7 @@ func (s *targetStore) get(expected core.Identity) (core.Identity, bool) {
 }
 
 const maxClockSkew = 30 * time.Second
+const signedBodyKey = "epochdeploy.signed-body"
 
 func main() {
 	secret := os.Getenv("EPOCHDEPLOY_EXECUTOR_HMAC_SECRET")
@@ -65,32 +67,8 @@ func main() {
 	}
 	store := newTargetStore()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "epochdeploy-executor"})
-	})
-	mux.HandleFunc("POST /v1/targets/observe", signedHandler(secret, func(w http.ResponseWriter, body []byte) {
-		var req observeRequest
-		if !decodeOne(body, &req) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
-			return
-		}
-		store.put(req.Identity)
-		writeJSON(w, http.StatusOK, map[string]string{"observed_fingerprint": core.Fingerprint(req.Identity)})
-	}))
-	mux.HandleFunc("POST /v1/execute", signedHandler(secret, func(w http.ResponseWriter, body []byte) {
-		var req executeRequest
-		if !decodeOne(body, &req) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
-			return
-		}
-		observed, ok := store.get(req.Expected)
-		if !ok {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "live target has not been observed by executor"})
-			return
-		}
-		writeJSON(w, http.StatusOK, core.Compare(req.Expected, observed))
-	}))
+	gin.SetMode(gin.ReleaseMode)
+	router := newRouter(secret, store)
 
 	port := os.Getenv("EPOCHDEPLOY_EXECUTOR_PORT")
 	if port == "" {
@@ -98,7 +76,7 @@ func main() {
 	}
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           mux,
+		Handler:           router,
 		ReadHeaderTimeout: 2 * time.Second,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      5 * time.Second,
@@ -116,25 +94,83 @@ func main() {
 		}
 	}()
 
-	log.Printf("epochdeploy executor listening on :%s", port)
+	log.Printf("epochdeploy Gin executor listening on :%s", port)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }
 
-func signedHandler(secret string, next func(http.ResponseWriter, []byte)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
-			return
-		}
-		if !validSignature(secret, r.Header.Get("X-EpochDeploy-Timestamp"), body, r.Header.Get("X-EpochDeploy-Signature"), time.Now()) {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid executor signature"})
-			return
-		}
-		next(w, body)
+func newRouter(secret string, store *targetStore) *gin.Engine {
+	router := gin.New()
+	router.Use(gin.Recovery())
+	if err := router.SetTrustedProxies(nil); err != nil {
+		panic(err)
 	}
+
+	router.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "epochdeploy-executor", "framework": "gin"})
+	})
+
+	signed := router.Group("/")
+	signed.Use(signedMiddleware(secret))
+	signed.POST("/v1/targets/observe", func(c *gin.Context) {
+		var req observeRequest
+		if !decodeSignedBody(c, &req) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+			return
+		}
+		store.put(req.Identity)
+		c.JSON(http.StatusOK, gin.H{"observed_fingerprint": core.Fingerprint(req.Identity)})
+	})
+	signed.POST("/v1/execute", func(c *gin.Context) {
+		var req executeRequest
+		if !decodeSignedBody(c, &req) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+			return
+		}
+		observed, ok := store.get(req.Expected)
+		if !ok {
+			c.JSON(http.StatusConflict, gin.H{"error": "live target has not been observed by executor"})
+			return
+		}
+		c.JSON(http.StatusOK, core.Compare(req.Expected, observed))
+	})
+	return router
+}
+
+func signedMiddleware(secret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10))
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+			return
+		}
+		if !validSignature(
+			secret,
+			c.GetHeader("X-EpochDeploy-Timestamp"),
+			body,
+			c.GetHeader("X-EpochDeploy-Signature"),
+			time.Now(),
+		) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid executor signature"})
+			return
+		}
+		c.Set(signedBodyKey, body)
+		c.Request.Body = io.NopCloser(bytes.NewReader(body))
+		c.Next()
+	}
+}
+
+func decodeSignedBody(c *gin.Context, dst any) bool {
+	value, ok := c.Get(signedBodyKey)
+	if !ok {
+		return false
+	}
+	body, ok := value.([]byte)
+	if !ok {
+		return false
+	}
+	return decodeOne(body, dst)
 }
 
 func decodeOne(body []byte, dst any) bool {
@@ -168,10 +204,4 @@ func validSignature(secret, timestamp string, body []byte, signature string, now
 	_, _ = mac.Write([]byte("."))
 	_, _ = mac.Write(body)
 	return hmac.Equal(provided, mac.Sum(nil))
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
 }

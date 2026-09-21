@@ -15,10 +15,10 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .db import Base, SessionLocal, engine, get_db
 from .fingerprint import fingerprint
-from .models import Approval, DeploymentEpoch, ExecutionReceipt, LiveTarget, User, WebhookEvent
+from .models import Approval, ArtifactEvidence, DeploymentEpoch, ExecutionReceipt, LiveTarget, User, WebhookEvent
 from .schemas import DriftRequest, EpochCreate, ExecuteRequest, LoginRequest, ReceiptOut, TargetObservation, TokenResponse
 from .security import current_user, hash_password, issue_token, require_role, verify_password
-from .services import approve_epoch, create_epoch, epoch_identity, execute_epoch, save_evidence, sync_executor_observation, upsert_target
+from .services import apply_gitlab_pipeline_event, approve_epoch, create_epoch, epoch_identity, execute_epoch, save_evidence, sync_executor_observation, upsert_target
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -191,11 +191,49 @@ async def gitlab_webhook(
         pipeline_id = str(attrs.get("id", ""))
         status = str(attrs.get("status", "unknown"))
         pipeline_sha = str(attrs.get("sha", ""))
-        rows = db.query(DeploymentEpoch).filter(DeploymentEpoch.pipeline_id == pipeline_id).all()
-        for row in rows:
-            row.pipeline_status = status if pipeline_sha == row.commit_sha else "sha_mismatch"
+        apply_gitlab_pipeline_event(db, pipeline_id=pipeline_id, status=status, pipeline_sha=pipeline_sha)
     db.commit()
     return {"accepted": True, "duplicate": False}
+
+
+@app.get("/api/epochs/{epoch_id}/evidence")
+def list_evidence(epoch_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    _epoch_or_404(db, epoch_id)
+    rows = (
+        db.query(ArtifactEvidence)
+        .filter(ArtifactEvidence.epoch_id == epoch_id)
+        .order_by(ArtifactEvidence.created_at.desc())
+        .all()
+    )
+    return [{
+        "id": row.id,
+        "kind": row.kind,
+        "filename": row.filename,
+        "sha256": row.sha256,
+        "content_type": row.content_type,
+        "size_bytes": row.size_bytes,
+        "created_at": row.created_at,
+    } for row in rows]
+
+
+@app.get("/api/integrations/status")
+def integrations_status(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    last_event = db.query(WebhookEvent).order_by(WebhookEvent.received_at.desc()).first()
+    return {
+        "gitlab": {
+            "webhook_configured": bool(settings.gitlab_webhook_token),
+            "event": "Pipeline Hook",
+            "sha_binding": True,
+            "last_event_type": last_event.event_type if last_event else None,
+            "last_external_id": last_event.external_id if last_event else None,
+        },
+        "executor": {
+            "mode": settings.executor_mode,
+            "transport": "signed-http" if settings.executor_mode == "http" else "in-process",
+            "request_auth": "timestamped HMAC-SHA256" if settings.executor_mode == "http" else "local",
+        },
+        "database": {"dialect": engine.dialect.name},
+    }
 
 
 @app.post("/api/demo/bootstrap")
@@ -212,9 +250,33 @@ def demo_bootstrap(user: User = Depends(require_role("admin")), db: Session = De
         config_hash="cfg:2e9d35a12347bd18bb3c9dcb7a4c8701",
         pipeline_id="7421",
     )
-    epoch = create_epoch(db, payload, user.username, pipeline_status="success")
+    epoch = create_epoch(db, payload, user.username)
     target = TargetObservation(**epoch_identity(epoch))
     upsert_target(db, target)
+    return epoch_view(db, epoch)
+
+
+@app.post("/api/demo/gitlab-success/{epoch_id}")
+def demo_gitlab_success(epoch_id: str, user: User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    _demo_only()
+    epoch = _epoch_or_404(db, epoch_id)
+    payload = {
+        "object_kind": "pipeline",
+        "object_attributes": {"id": int(epoch.pipeline_id), "status": "success", "sha": epoch.commit_sha},
+        "project": {"path_with_namespace": f"demo/{epoch.project}"},
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    payload_hash = hashlib.sha256(raw).hexdigest()
+    event = db.query(WebhookEvent).filter(WebhookEvent.payload_hash == payload_hash).one_or_none()
+    if event is None:
+        db.add(WebhookEvent(
+            provider="gitlab", event_type="Pipeline Hook", external_id=epoch.pipeline_id, payload_hash=payload_hash
+        ))
+    apply_gitlab_pipeline_event(
+        db, pipeline_id=epoch.pipeline_id, status="success", pipeline_sha=epoch.commit_sha
+    )
+    db.commit()
+    db.refresh(epoch)
     return epoch_view(db, epoch)
 
 

@@ -10,35 +10,88 @@
   <div class="shell">
     <aside class="sidebar">
       <div class="brand"><span class="mark">E</span><div><b>EpochDeploy</b><small>AI-safe release control plane</small></div></div>
-      <nav><button class="nav active">Release Control</button><button class="nav">Evidence</button><button class="nav">Execution Receipts</button><button class="nav">Integrations</button></nav>
+      <nav aria-label="Control plane sections">
+        <button class="nav active" data-view="release" aria-current="page">Release Control</button>
+        <button class="nav" data-view="evidence">Evidence</button>
+        <button class="nav" data-view="receipts">Execution Receipts</button>
+        <button class="nav" data-view="integrations">Integrations</button>
+      </nav>
       <div class="side-note"><span class="dot"></span> Go executor boundary<br><small>fail-closed verification enabled</small></div>
     </aside>
+
     <main>
-      <header><div><p class="eyebrow">PRODUCTION RELEASE / PAYMENTS-API</p><h1>Approval is not enough.<br><span>Re-verify what will actually run.</span></h1></div><div id="identity" class="identity">Not signed in</div></header>
-      <section class="metrics">
-        <article><small>CONTROL STATE</small><strong id="metric-state">READY</strong><p>immutable deployment epoch</p></article>
-        <article><small>PIPELINE EVIDENCE</small><strong id="metric-pipeline">—</strong><p>GitLab verification status</p></article>
-        <article><small>FINGERPRINT MATCH</small><strong id="metric-match">—</strong><p>approval vs execution target</p></article>
+      <section class="view" data-view-panel="release">
+        <header><div><p class="eyebrow">PRODUCTION RELEASE / PAYMENTS-API</p><h1>Approval is not enough.<br><span>Re-verify what will actually run.</span></h1></div><div id="identity" class="identity">Not signed in</div></header>
+        <section class="metrics">
+          <article><small>CONTROL STATE</small><strong id="metric-state">READY</strong><p>immutable deployment epoch</p></article>
+          <article><small>PIPELINE EVIDENCE</small><strong id="metric-pipeline">—</strong><p>GitLab SHA-bound verification</p></article>
+          <article><small>FINGERPRINT MATCH</small><strong id="metric-match">—</strong><p>approval vs execution target</p></article>
+        </section>
+
+        <section class="grid">
+          <article class="panel primary">
+            <div class="panel-head"><div><small>DEMO WORKFLOW</small><h2>Stale approval rehearsal</h2></div><span class="badge">TOCTOU GUARD</span></div>
+            <div class="steps">
+              <button id="boot" class="step"><span>1</span><div><b>Create immutable epoch</b><small>commit + digest + config hash</small></div></button>
+              <button id="verify-pipeline" class="step" disabled><span>2</span><div><b>Verify GitLab Pipeline Hook</b><small>pipeline id + exact commit SHA binding</small></div></button>
+              <button id="approve" class="step" disabled><span>3</span><div><b>Approve exact fingerprint</b><small>separate approver role</small></div></button>
+              <button id="drift" class="step danger" disabled><span>4</span><div><b>Inject artifact drift</b><small>optional: simulate change after approval</small></div></button>
+              <button id="execute" class="step" disabled><span>5</span><div><b>Execute with final re-check</b><small>Go boundary compares live identity</small></div></button>
+            </div>
+            <div id="result" class="result muted">Create an epoch to begin the release workflow.</div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><div><small>DEPLOYMENT IDENTITY</small><h2>Expected vs observed</h2></div></div>
+            <div id="diffs" class="diffs"><div class="empty">No execution yet.</div></div>
+          </article>
+        </section>
+
+        <section class="panel architecture">
+          <div class="panel-head"><div><small>SERVICE BOUNDARIES</small><h2>Python orchestrates. Go decides at the edge.</h2></div></div>
+          <div class="flow"><div><b>GitLab</b><small>pipeline hook</small></div><i>→</i><div><b>FastAPI</b><small>orchestration · JWT · upload</small></div><i>→</i><div><b>PostgreSQL</b><small>epoch · approval · receipt</small></div><i>→</i><div class="accent"><b>Go Executor</b><small>final immutable re-check</small></div></div>
+        </section>
       </section>
-      <section class="grid">
-        <article class="panel primary">
-          <div class="panel-head"><div><small>DEMO WORKFLOW</small><h2>Stale approval rehearsal</h2></div><span class="badge">TOCTOU GUARD</span></div>
-          <div class="steps">
-            <button id="boot" class="step"><span>1</span><div><b>Create immutable epoch</b><small>commit + digest + config hash</small></div></button>
-            <button id="approve" class="step" disabled><span>2</span><div><b>Approve exact fingerprint</b><small>separate approver role</small></div></button>
-            <button id="drift" class="step danger" disabled><span>3</span><div><b>Inject artifact drift</b><small>simulate change after approval</small></div></button>
-            <button id="execute" class="step" disabled><span>4</span><div><b>Execute with final re-check</b><small>Go boundary compares live identity</small></div></button>
-          </div>
-          <div id="result" class="result muted">Run the workflow to generate an execution receipt.</div>
-        </article>
+
+      <section class="view hidden" data-view-panel="evidence">
+        <header class="section-header"><div><p class="eyebrow">SUPPLY-CHAIN EVIDENCE</p><h1>Evidence ledger.<br><span>Hash what supports the release.</span></h1></div><div class="identity epoch-context">No active epoch</div></header>
+        <section class="grid evidence-grid">
+          <article class="panel">
+            <div class="panel-head"><div><small>ATTACH EVIDENCE</small><h2>Immutable file provenance</h2></div><span class="badge">SHA-256</span></div>
+            <p class="body-copy">Upload build provenance, SBOM fragments, logs, or release attestations. The server bounds the payload, sanitizes the filename, hashes the exact bytes, and stores only metadata in the release ledger.</p>
+            <div class="upload-form">
+              <label>Kind<input id="evidence-kind" type="text" value="provenance" maxlength="40" /></label>
+              <label>File<input id="evidence-file" type="file" /></label>
+              <button id="upload-evidence" class="action" disabled>Hash & attach evidence</button>
+            </div>
+            <div id="evidence-result" class="result muted">Create a release epoch before attaching evidence.</div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><small>CURRENT EPOCH</small><h2>Evidence records</h2></div><button id="refresh-evidence" class="ghost" disabled>Refresh</button></div>
+            <div id="evidence-list" class="records"><div class="empty">No active epoch.</div></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="view hidden" data-view-panel="receipts">
+        <header class="section-header"><div><p class="eyebrow">AUDIT TRAIL</p><h1>Execution receipts.<br><span>Persist every final decision.</span></h1></div><div class="identity epoch-context">No active epoch</div></header>
         <article class="panel">
-          <div class="panel-head"><div><small>DEPLOYMENT IDENTITY</small><h2>Expected vs observed</h2></div></div>
-          <div id="diffs" class="diffs"><div class="empty">No execution yet.</div></div>
+          <div class="panel-head"><div><small>RECEIPTS</small><h2>Outcome, fingerprints, and latency</h2></div><button id="refresh-receipts" class="ghost" disabled>Refresh</button></div>
+          <div id="receipt-list" class="records"><div class="empty">Execute a release to generate a receipt.</div></div>
         </article>
       </section>
-      <section class="panel architecture">
-        <div class="panel-head"><div><small>SERVICE BOUNDARIES</small><h2>Python orchestrates. Go decides at the edge.</h2></div></div>
-        <div class="flow"><div><b>GitLab</b><small>pipeline hook</small></div><i>→</i><div><b>FastAPI</b><small>orchestration · JWT · upload</small></div><i>→</i><div><b>PostgreSQL</b><small>epoch · approval · receipt</small></div><i>→</i><div class="accent"><b>Go Executor</b><small>final immutable re-check</small></div></div>
+
+      <section class="view hidden" data-view-panel="integrations">
+        <header class="section-header"><div><p class="eyebrow">SERVICE CONTRACTS</p><h1>Integrations.<br><span>Show the boundaries, not just the boxes.</span></h1></div><button id="refresh-integrations" class="ghost">Refresh status</button></header>
+        <section class="status-grid">
+          <article class="panel status-card"><small>GITLAB</small><h2>Pipeline evidence</h2><div id="integration-gitlab" class="kv"><div class="empty">Authenticate to load status.</div></div></article>
+          <article class="panel status-card"><small>GO EXECUTOR</small><h2>Execution boundary</h2><div id="integration-executor" class="kv"><div class="empty">Authenticate to load status.</div></div></article>
+          <article class="panel status-card"><small>DATABASE</small><h2>Workflow durability</h2><div id="integration-database" class="kv"><div class="empty">Authenticate to load status.</div></div></article>
+        </section>
+        <section class="panel architecture integration-flow">
+          <div class="panel-head"><div><small>TRUST BOUNDARY</small><h2>Approval evidence and execution observation stay separate.</h2></div></div>
+          <p class="body-copy">GitLab proves a pipeline result for an exact commit. FastAPI persists the workflow and approval. The Go executor owns the live observation and refuses a stale identity instead of trusting caller-supplied observed values.</p>
+        </section>
       </section>
     </main>
   </div>

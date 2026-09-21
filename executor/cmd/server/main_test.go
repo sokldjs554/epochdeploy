@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -53,6 +58,56 @@ func TestTargetStoreSeparatesObservationFromExecuteInput(t *testing.T) {
 	if got.ArtifactDigest == expected.ArtifactDigest {
 		t.Fatal("store returned caller expected identity instead of observed target")
 	}
+}
+
+func TestGinRouterRejectsUnsignedExecution(t *testing.T) {
+	router := newRouter("secret", newTargetStore())
+	req := httptest.NewRequest(http.MethodPost, "/v1/execute", bytes.NewBufferString(`{"expected":{}}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("got %d want %d: %s", rec.Code, http.StatusUnauthorized, rec.Body.String())
+	}
+}
+
+func TestGinRouterObserveThenExecute(t *testing.T) {
+	const secret = "secret"
+	router := newRouter(secret, newTargetStore())
+	identity := sampleIdentityForServer()
+
+	observeBody, _ := json.Marshal(observeRequest{Identity: identity})
+	observe := signedRequest(t, secret, http.MethodPost, "/v1/targets/observe", observeBody)
+	observeRec := httptest.NewRecorder()
+	router.ServeHTTP(observeRec, observe)
+	if observeRec.Code != http.StatusOK {
+		t.Fatalf("observe got %d: %s", observeRec.Code, observeRec.Body.String())
+	}
+
+	executeBody, _ := json.Marshal(executeRequest{Expected: identity})
+	execute := signedRequest(t, secret, http.MethodPost, "/v1/execute", executeBody)
+	executeRec := httptest.NewRecorder()
+	router.ServeHTTP(executeRec, execute)
+	if executeRec.Code != http.StatusOK {
+		t.Fatalf("execute got %d: %s", executeRec.Code, executeRec.Body.String())
+	}
+	var result core.Result
+	if err := json.Unmarshal(executeRec.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != "EXECUTED" {
+		t.Fatalf("got outcome %s", result.Outcome)
+	}
+}
+
+func signedRequest(t *testing.T, secret, method, path string, body []byte) *http.Request {
+	t.Helper()
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	req := httptest.NewRequest(method, path, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-EpochDeploy-Timestamp", timestamp)
+	req.Header.Set("X-EpochDeploy-Signature", signForTest(secret, timestamp, body))
+	return req
 }
 
 func sampleIdentityForServer() core.Identity {

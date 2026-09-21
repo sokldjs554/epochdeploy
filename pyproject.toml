@@ -16,6 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=8", "pytest-cov>=5"]
 postgres = ["psycopg[binary]>=3.2"]
+browser = ["playwright>=1.55"]
 
 [tool.pytest.ini_options]
 pythonpath = ["orchestrator"]
