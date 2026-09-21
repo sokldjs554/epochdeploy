@@ -30,16 +30,13 @@ jobs:
       - name: Go vet and race tests
         working-directory: executor
         run: go vet ./... && go test -race -count=1 ./...
-      - name: Gin executor vet and race tests
+      - name: Gin executor lock, vet and race tests
         working-directory: executor-gin
-        run: go mod tidy && go vet ./... && go test -race -count=1 ./...
-      - name: Upload generated Gin module lock
-        uses: actions/upload-artifact@v7
-        with:
-          name: epochdeploy-gin-module-lock
-          path: |
-            executor-gin/go.mod
-            executor-gin/go.sum
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+          go vet ./...
+          go test -race -count=1 ./...
       - name: Static JavaScript syntax
         run: node --check orchestrator/app/static/app.js
 
