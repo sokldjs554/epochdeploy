@@ -12,6 +12,16 @@ go-tests:
   image: golang:1.23
   script:
     - cd executor
+    - go vet ./...
+    - go test -race ./...
+
+gin-tests:
+  stage: verify
+  image: golang:1.23
+  script:
+    - cd executor-gin
+    - go mod tidy
+    - go vet ./...
     - go test -race ./...
 
 compose-contract:
