@@ -37,7 +37,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: epochdeploy-gin-module-lock
-          path: executor-gin/go.sum
+          path: |
+            executor-gin/go.mod
+            executor-gin/go.sum
       - name: Static JavaScript syntax
         run: node --check orchestrator/app/static/app.js
 
