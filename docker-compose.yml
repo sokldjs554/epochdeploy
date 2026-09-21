@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: epochdeploy
+      POSTGRES_PASSWORD: epochdeploy
+      POSTGRES_DB: epochdeploy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U epochdeploy"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  executor:
+    build:
+      context: ./executor
+    environment:
+      EPOCHDEPLOY_EXECUTOR_PORT: "9080"
+      EPOCHDEPLOY_EXECUTOR_HMAC_SECRET: "local-executor-secret"
+    expose:
+      - "9080"
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: orchestrator/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      executor:
+        condition: service_started
+    environment:
+      EPOCHDEPLOY_DATABASE_URL: postgresql+psycopg://epochdeploy:epochdeploy@postgres:5432/epochdeploy
+      EPOCHDEPLOY_JWT_SECRET: local-compose-secret
+      EPOCHDEPLOY_GITLAB_WEBHOOK_TOKEN: local-demo-token
+      EPOCHDEPLOY_EXECUTOR_URL: http://executor:9080
+      EPOCHDEPLOY_EXECUTOR_MODE: http
+      EPOCHDEPLOY_EXECUTOR_HMAC_SECRET: local-executor-secret
+      EPOCHDEPLOY_UPLOAD_DIR: /data/evidence
+      EPOCHDEPLOY_DEMO_MODE: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - evidence:/data/evidence
+
+volumes:
+  pgdata:
+  evidence:

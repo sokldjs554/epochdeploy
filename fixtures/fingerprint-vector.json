@@ -1,0 +1,10 @@
+{
+  "identity": {
+    "project": "payments-api",
+    "environment": "prod",
+    "commit_sha": "abc1234",
+    "artifact_digest": "sha256:1111111111111111",
+    "config_hash": "cfg:2222222222222222"
+  },
+  "fingerprint": "074034cdaccbb753732b0212fb10ce1418aeda971956c570f586ed6f04bbdc13"
+}

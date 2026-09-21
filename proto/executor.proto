@@ -1,0 +1,33 @@
+syntax = "proto3";
+package epochdeploy.executor.v1;
+
+option go_package = "epochdeploy/executor/gen/executorv1";
+
+service Executor {
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+  rpc Observe(ObserveRequest) returns (ObserveResponse);
+}
+
+message DeploymentIdentity {
+  string project = 1;
+  string environment = 2;
+  string commit_sha = 3;
+  string artifact_digest = 4;
+  string config_hash = 5;
+}
+
+message ExecuteRequest {
+  string epoch_id = 1;
+  string approved_fingerprint = 2;
+  DeploymentIdentity expected = 3;
+  string capability_token = 4;
+}
+
+message ExecuteResponse {
+  string outcome = 1;
+  string observed_fingerprint = 2;
+  string reason = 3;
+}
+
+message ObserveRequest { DeploymentIdentity identity = 1; }
+message ObserveResponse { string observed_fingerprint = 1; }

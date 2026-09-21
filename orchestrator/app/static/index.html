@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>EpochDeploy Control Plane</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="mark">E</span><div><b>EpochDeploy</b><small>AI-safe release control plane</small></div></div>
+      <nav><button class="nav active">Release Control</button><button class="nav">Evidence</button><button class="nav">Execution Receipts</button><button class="nav">Integrations</button></nav>
+      <div class="side-note"><span class="dot"></span> Go executor boundary<br><small>fail-closed verification enabled</small></div>
+    </aside>
+    <main>
+      <header><div><p class="eyebrow">PRODUCTION RELEASE / PAYMENTS-API</p><h1>Approval is not enough.<br><span>Re-verify what will actually run.</span></h1></div><div id="identity" class="identity">Not signed in</div></header>
+      <section class="metrics">
+        <article><small>CONTROL STATE</small><strong id="metric-state">READY</strong><p>immutable deployment epoch</p></article>
+        <article><small>PIPELINE EVIDENCE</small><strong id="metric-pipeline">—</strong><p>GitLab verification status</p></article>
+        <article><small>FINGERPRINT MATCH</small><strong id="metric-match">—</strong><p>approval vs execution target</p></article>
+      </section>
+      <section class="grid">
+        <article class="panel primary">
+          <div class="panel-head"><div><small>DEMO WORKFLOW</small><h2>Stale approval rehearsal</h2></div><span class="badge">TOCTOU GUARD</span></div>
+          <div class="steps">
+            <button id="boot" class="step"><span>1</span><div><b>Create immutable epoch</b><small>commit + digest + config hash</small></div></button>
+            <button id="approve" class="step" disabled><span>2</span><div><b>Approve exact fingerprint</b><small>separate approver role</small></div></button>
+            <button id="drift" class="step danger" disabled><span>3</span><div><b>Inject artifact drift</b><small>simulate change after approval</small></div></button>
+            <button id="execute" class="step" disabled><span>4</span><div><b>Execute with final re-check</b><small>Go boundary compares live identity</small></div></button>
+          </div>
+          <div id="result" class="result muted">Run the workflow to generate an execution receipt.</div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><div><small>DEPLOYMENT IDENTITY</small><h2>Expected vs observed</h2></div></div>
+          <div id="diffs" class="diffs"><div class="empty">No execution yet.</div></div>
+        </article>
+      </section>
+      <section class="panel architecture">
+        <div class="panel-head"><div><small>SERVICE BOUNDARIES</small><h2>Python orchestrates. Go decides at the edge.</h2></div></div>
+        <div class="flow"><div><b>GitLab</b><small>pipeline hook</small></div><i>→</i><div><b>FastAPI</b><small>orchestration · JWT · upload</small></div><i>→</i><div><b>PostgreSQL</b><small>epoch · approval · receipt</small></div><i>→</i><div class="accent"><b>Go Executor</b><small>final immutable re-check</small></div></div>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
