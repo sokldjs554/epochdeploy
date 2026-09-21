@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .db import Base, SessionLocal, engine, get_db
 from .fingerprint import fingerprint
-from .models import Approval, DeploymentEpoch, ExecutionReceipt, LiveTarget, User, WebhookEvent
+from .models import Approval, ArtifactEvidence, DeploymentEpoch, ExecutionReceipt, LiveTarget, User, WebhookEvent
 from .schemas import DriftRequest, EpochCreate, ExecuteRequest, LoginRequest, ReceiptOut, TargetObservation, TokenResponse
 from .security import current_user, hash_password, issue_token, require_role, verify_password
 from .services import approve_epoch, create_epoch, epoch_identity, execute_epoch, save_evidence, sync_executor_observation, upsert_target
@@ -142,6 +142,54 @@ def observe_target(payload: TargetObservation, user: User = Depends(require_role
     row = upsert_target(db, payload)
     ident = payload.model_dump()
     return {"project": row.project, "environment": row.environment, "fingerprint": fingerprint(ident), **ident}
+
+
+@app.get("/api/epochs/{epoch_id}/evidence")
+def list_evidence(epoch_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    _epoch_or_404(db, epoch_id)
+    rows = (
+        db.query(ArtifactEvidence)
+        .filter(ArtifactEvidence.epoch_id == epoch_id)
+        .order_by(ArtifactEvidence.created_at.desc())
+        .all()
+    )
+    return [{
+        "id": row.id,
+        "kind": row.kind,
+        "filename": row.filename,
+        "sha256": row.sha256,
+        "content_type": row.content_type,
+        "size_bytes": row.size_bytes,
+        "created_at": row.created_at,
+    } for row in rows]
+
+
+@app.get("/api/system/integrations")
+def integration_status(user: User = Depends(current_user)):
+    database_backend = "postgresql" if settings.database_url.startswith("postgresql") else "sqlite"
+    return {
+        "gitlab": {
+            "status": "configured" if bool(settings.gitlab_webhook_token) else "unconfigured",
+            "event": "Pipeline Hook",
+            "binding": "pipeline id + immutable commit SHA",
+        },
+        "executor": {
+            "status": "configured",
+            "mode": settings.executor_mode,
+            "transport": "HMAC-SHA256 signed HTTP/JSON",
+            "target_observation": "executor-owned",
+        },
+        "database": {
+            "status": "configured",
+            "backend": database_backend,
+            "role": "epochs + approvals + evidence + receipts + outbox",
+        },
+        "grpc": {
+            "status": "contract-only",
+            "contract": "proto/executor.proto",
+            "runtime_transport": "HTTP/JSON",
+        },
+    }
 
 
 @app.post("/api/epochs/{epoch_id}/evidence", status_code=201)
