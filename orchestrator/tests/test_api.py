@@ -169,3 +169,45 @@ def test_executor_observation_failure_maps_to_502(client, operator, monkeypatch)
     response = client.post('/api/targets/observe', json=ident, headers=operator)
     assert response.status_code == 502
     assert response.json()['detail'] == 'executor observation unavailable'
+
+
+def test_demo_bootstrap_keeps_pipeline_pending_until_demo_gitlab_hook(client, admin, approver):
+    epoch = client.post('/api/demo/bootstrap', headers=admin).json()
+    assert epoch['pipeline_status'] == 'pending'
+    blocked = client.post(f"/api/epochs/{epoch['id']}/approve", headers=approver)
+    assert blocked.status_code == 409
+    verified = client.post(f"/api/demo/gitlab-success/{epoch['id']}", headers=admin)
+    assert verified.status_code == 200
+    assert verified.json()['pipeline_status'] == 'success'
+    approved = client.post(f"/api/epochs/{epoch['id']}/approve", headers=approver)
+    assert approved.status_code == 200
+
+
+def test_integrations_status_reports_last_pipeline_event(client, admin, operator):
+    epoch = client.post('/api/demo/bootstrap', headers=admin).json()
+    client.post(f"/api/demo/gitlab-success/{epoch['id']}", headers=admin)
+    response = client.get('/api/integrations/status', headers=operator)
+    assert response.status_code == 200
+    body = response.json()
+    assert body['gitlab']['webhook_configured'] is True
+    assert body['gitlab']['sha_binding'] is True
+    assert body['gitlab']['last_event_type'] == 'Pipeline Hook'
+    assert body['gitlab']['last_external_id'] == epoch['pipeline_id']
+    assert body['executor']['request_auth'] in {'local', 'timestamped HMAC-SHA256'}
+
+
+def test_evidence_can_be_listed_for_epoch(client, operator):
+    epoch = create_epoch(client, operator)
+    uploaded = client.post(
+        f"/api/epochs/{epoch['id']}/evidence",
+        headers=operator,
+        data={'kind': 'provenance'},
+        files={'file': ('provenance.txt', b'commit=abcdef1234567\n', 'text/plain')},
+    )
+    assert uploaded.status_code == 201
+    listed = client.get(f"/api/epochs/{epoch['id']}/evidence", headers=operator)
+    assert listed.status_code == 200
+    rows = listed.json()
+    assert len(rows) == 1
+    assert rows[0]['filename'] == 'provenance.txt'
+    assert rows[0]['kind'] == 'provenance'
