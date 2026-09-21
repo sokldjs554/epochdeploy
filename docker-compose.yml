@@ -15,7 +15,8 @@ services:
 
   executor:
     build:
-      context: ./executor
+      context: .
+      dockerfile: executor-gin/Dockerfile
     environment:
       EPOCHDEPLOY_EXECUTOR_PORT: "9080"
       EPOCHDEPLOY_EXECUTOR_HMAC_SECRET: "local-executor-secret"
