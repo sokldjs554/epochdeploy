@@ -20,3 +20,10 @@ Show the architecture strip: FastAPI orchestration -> PostgreSQL workflow state 
 
 ## Interview line
 “AI가 배포를 추천하는 기능보다, AI가 실행 단계까지 들어오는 순간 무엇을 승인했고 무엇이 실제 실행됐는지를 고정하는 문제가 더 어렵다고 봤습니다. 그래서 모델 성능이 아니라 실행 경계와 재현 가능한 증거를 백엔드 문제로 풀었습니다.”
+
+
+## Optional depth tour after the 3-minute core demo
+
+- **Evidence:** upload `build-provenance.txt` and show the backend-recorded SHA-256 digest.
+- **Execution Receipts:** show the exact approved/observed fingerprints and the terminal outcome.
+- **Integrations:** show which boundaries are actually configured and point out that gRPC remains a contract, not a falsely claimed runtime.

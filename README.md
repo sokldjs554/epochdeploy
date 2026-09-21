@@ -78,12 +78,13 @@ This switches the orchestrator to PostgreSQL and talks to the separate Go servic
 - idempotent execution receipts;
 - Go core/server tests, including HMAC tamper/stale-signature checks and cross-runtime fingerprint vectors;
 - live HTTP smoke script (`scripts/smoke.sh`);
+- Chromium browser E2E across Release Control, Evidence, Execution Receipts, and Integrations (`scripts/browser-e2e.py`);
 - GitLab Docker Compose integration job.
 
 ## Verification boundary
 
-The local verification harness runs Python tests, Go race/vet checks, package installation, signed two-service HTTP smoke tests, and repeated stale-approval checks. A supplementary GitHub-hosted workflow also builds the Docker images, starts the Compose stack with **PostgreSQL 16**, verifies the production-shaped database path, and repeats the end-to-end smoke flow.
+The local verification harness runs Python tests, Go race/vet checks, package installation, signed two-service HTTP smoke tests, and repeated stale-approval checks. A separate Chromium E2E script clicks through the service UI, performs a real evidence upload, inspects execution receipts and integration status, then verifies both `EXECUTED` and `DENIED_STALE` flows. A supplementary GitHub-hosted workflow also builds the Docker images, starts the Compose stack with **PostgreSQL 16**, verifies the production-shaped database path, and repeats the end-to-end smoke flow.
 
-GitLab CI remains the job-aligned pipeline contract in `.gitlab-ci.yml`; a real GitLab Runner has not been connected in this environment. Generated gRPC transport, Gin, browser E2E screenshots, and Kubernetes are likewise not claimed as executed. See `docs/verification.md` for the exact evidence and remaining boundaries.
+GitLab CI remains the job-aligned pipeline contract in `.gitlab-ci.yml`; a real GitLab Runner has not been connected in this environment. Generated gRPC transport, Gin, and Kubernetes are not claimed as executed; browser E2E is now part of the verification evidence. See `docs/verification.md` for the exact evidence and remaining boundaries.
 
 See `docs/architecture.md`, `docs/demo-script.md`, and `docs/verification.md`.

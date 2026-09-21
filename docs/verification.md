@@ -15,7 +15,7 @@ Each successful full round performed:
 - `gofmt -l executor` (must return no files)
 - `go vet ./...`
 - `go test -race -count=1 ./...`
-- `python -m pytest` -> **29 passed**
+- `python -m pytest` -> **31 passed**
 - build a Python wheel from `pyproject.toml`, install it into an isolated target, import `app.main`, and verify packaged static assets
 - build a fresh Go executor binary
 - assert the dedicated verification ports are unused before starting services, preventing a stale process from satisfying health checks
@@ -41,9 +41,32 @@ A supplementary GitHub pull-request workflow (`Remote Verification`) was then ex
 
 This closes the earlier runtime gap for Docker Compose and the PostgreSQL-backed application path. It does **not** substitute for an actual GitLab Runner execution, and it is not a production capacity benchmark.
 
+## Browser E2E verification
+
+After the service-style navigation was made functional, `scripts/browser-e2e.py` completed successfully **three consecutive times** against freshly started FastAPI + Go processes. Each round used Chromium and exercised the actual UI JavaScript and real backend APIs:
+
+1. create epoch -> approve -> execute -> `EXECUTED` / `MATCH`;
+2. open **Evidence**, upload a real multipart provenance file, and verify its SHA-256 ledger entry;
+3. open **Execution Receipts** and verify the stored happy-path receipt;
+4. open **Integrations** and verify GitLab, executor, database, and the explicitly `contract-only` gRPC status;
+5. create a fresh epoch -> approve -> mutate artifact digest -> execute -> `DENIED_STALE` / `BLOCKED` with an `artifact_digest` diff;
+6. reopen **Execution Receipts** and verify the blocked receipt.
+
+Each round produced seven screenshots. Across all three rounds there were **zero browser console errors, page errors, failed requests, or HTTP 4xx/5xx responses** during the UI flow. The sandbox's managed Chromium blocks top-level localhost navigation, so the E2E runner has a documented fallback: it loads the exact repository HTML/CSS/JS in-memory and proxies browser fetch/XHR requests to the real local FastAPI service. On unrestricted runners it navigates to the served page directly.
+
+### Remote Chromium evidence
+
+GitHub-hosted `Remote Verification` run **#5** (run id `35608531620`) independently exercised the same update on the production-shaped Compose path and completed both jobs successfully:
+
+- **unit-and-package:** all **31 Python tests**, package build, `go vet`, `go test -race -count=1 ./...`, and JavaScript syntax check.
+- **compose-postgres-smoke:** Docker image build/start, PostgreSQL 16 runtime/schema check, three two-service smoke rounds, Chromium installation, and the complete browser E2E flow above.
+- the workflow uploaded the seven remote Chromium screenshots as artifact `epochdeploy-browser-e2e` (artifact id `10643117861`, SHA-256 `4673c87a596e030a20cab636a149393fe972d69f1553ca0004bc3eaca6c1043d`).
+
+The downloaded remote artifact was inspected after the run. Evidence, Integrations, and stale-approval screens rendered without clipping or layout breakage; the Integrations view reported the live database backend as `postgresql`, and the stale flow visibly showed `DENIED_STALE` / `BLOCKED` with the approved-vs-observed artifact digest difference.
+
 ## Python/API coverage highlights
 
-The 29 passing tests include:
+The 31 passing tests include:
 
 - JWT login and unauthenticated rejection
 - RBAC: operator cannot approve
@@ -57,6 +80,8 @@ The 29 passing tests include:
 - webhook payload size limit
 - evidence upload hashing and path sanitization
 - evidence metadata bounds
+- authenticated evidence-ledger listing and metadata integrity
+- integration-status reporting without exposing configured secrets
 - exact-match execution
 - missing approval rejection
 - missing target observation rejection
@@ -119,6 +144,5 @@ These items are **not** claimed complete:
 - **Actual GitLab Runner execution:** `.gitlab-ci.yml` is present and structurally reviewed, but no runner is connected here. The successful GitHub-hosted workflow is supplementary validation, not a claim that GitLab CI itself ran.
 - **Generated gRPC transport:** `proto/executor.proto` documents the target service contract, but `protoc` and required networked Go dependencies are unavailable here. The verified transport is signed HTTP/JSON.
 - **Gin transport:** the verified Go service deliberately uses the standard library HTTP server; Gin is not falsely claimed as executed.
-- **Browser screenshot/E2E clicks:** dashboard HTML/JS is served and syntax-checked. A Chromium headless screenshot attempt in this environment did not terminate reliably, so visual browser verification remains open.
 - **Kubernetes deployment:** intentionally deferred until the container path can be executed and verified.
-- **Remote GitHub repository:** `sokldjs554/epochdeploy` now exists. The imported release tree was compared file-by-file against local Git blob SHAs. That check caught one omitted `executor/Dockerfile` and one mismatched verification script; both were corrected, after which all 50 release files matched before the remote-verification workflow was added.
+- **Remote GitHub repository:** `sokldjs554/epochdeploy` exists. The previous release was compared file-by-file against local Git blob SHAs before merge; this verification discipline remains the handoff requirement for the current UI/E2E update.

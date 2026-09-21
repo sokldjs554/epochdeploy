@@ -1,54 +1,31 @@
-const state={admin:null,operator:null,approver:null,epoch:null,drifted:false};
+const state={admin:null,operator:null,approver:null,epoch:null,drifted:false,currentView:'release'};
 const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
 async function login(username,password){const r=await fetch('/api/auth/token',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username,password})});if(!r.ok)throw new Error(await r.text());return (await r.json()).access_token}
 async function api(path,token,opts={}){const headers={...(opts.headers||{}),Authorization:`Bearer ${token}`};if(opts.body && !(opts.body instanceof FormData))headers['content-type']='application/json';const r=await fetch(path,{...opts,headers});const data=await r.json();if(!r.ok)throw new Error(data.detail||JSON.stringify(data));return data}
 async function ensure(){if(!state.admin){state.admin=await login('admin','admin-demo');state.operator=await login('operator','operator-demo');state.approver=await login('approver','approver-demo');$('#identity').textContent='demo roles authenticated'}}
+async function ensureEpoch(){await ensure();if(!state.epoch){const rows=await api('/api/epochs',state.operator);if(rows.length)state.epoch=rows[0]}syncEpochContext();return state.epoch}
 function setResult(text,kind='muted'){const el=$('#result');el.className=`result ${kind}`;el.textContent=text}
-function renderDiffs(diffs){
-  const box=$('#diffs');
-  box.replaceChildren();
-  if(!diffs?.length){
-    const empty=document.createElement('div');
-    empty.className='empty';
-    empty.textContent='Expected and observed deployment identities match.';
-    box.appendChild(empty);
-    return;
-  }
-  for(const d of diffs){
-    const row=document.createElement('div'); row.className='diff';
-    const field=document.createElement('b'); field.textContent=d.field; row.appendChild(field);
-    const pair=document.createElement('div'); pair.className='pair';
-    for(const [label,value] of [['approved',d.expected],['observed',d.observed]]){
-      const cell=document.createElement('div');
-      const small=document.createElement('small'); small.textContent=label;
-      cell.appendChild(small); cell.appendChild(document.createTextNode(value)); pair.appendChild(cell);
-    }
-    row.appendChild(pair); box.appendChild(row);
-  }
-}
-$('#boot').onclick=async()=>{try{await ensure();state.epoch=await api('/api/demo/bootstrap',state.admin,{method:'POST'});state.drifted=false;$('#approve').disabled=false;$('#drift').disabled=true;$('#execute').disabled=true;$('#metric-state').textContent='DRAFT';$('#metric-pipeline').textContent=state.epoch.pipeline_status.toUpperCase();$('#metric-match').textContent='PENDING';setResult(`Epoch ${state.epoch.id.slice(0,8)} created. Approval will bind fingerprint ${state.epoch.fingerprint.slice(0,14)}…`)}catch(e){setResult(e.message,'fail')}};
-$('#approve').onclick=async()=>{try{await api(`/api/epochs/${state.epoch.id}/approve`,state.approver,{method:'POST'});$('#drift').disabled=false;$('#execute').disabled=false;$('#metric-state').textContent='APPROVED';setResult('Approval is now bound to the exact deployment fingerprint. You may execute as-is or inject drift.')}catch(e){setResult(e.message,'fail')}};
+function setInlineResult(selector,text,kind='muted'){const el=$(selector);el.className=`result ${kind}`;el.textContent=text}
+function shortHash(value,n=14){return value?`${value.slice(0,n)}${value.length>n?'…':''}`:'—'}
+function bytes(value){if(value<1024)return `${value} B`;if(value<1024*1024)return `${(value/1024).toFixed(1)} KB`;return `${(value/(1024*1024)).toFixed(1)} MB`}
+function formatTime(value){if(!value)return '—';return new Date(value).toLocaleString()}
+function syncEpochContext(){const text=state.epoch?`${state.epoch.project} / ${state.epoch.environment} · epoch ${state.epoch.id.slice(0,8)} · ${state.epoch.state}`:'No deployment epoch selected.';$('#evidence-epoch').textContent=text;$('#receipts-epoch').textContent=text;$('#evidence-upload').disabled=!state.epoch}
+function renderDiffs(diffs){const box=$('#diffs');box.replaceChildren();if(!diffs?.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='Expected and observed deployment identities match.';box.appendChild(empty);return}for(const d of diffs){const row=document.createElement('div');row.className='diff';const field=document.createElement('b');field.textContent=d.field;row.appendChild(field);const pair=document.createElement('div');pair.className='pair';for(const [label,value] of [['approved',d.expected],['observed',d.observed]]){const cell=document.createElement('div');const small=document.createElement('small');small.textContent=label;cell.appendChild(small);cell.appendChild(document.createTextNode(value));pair.appendChild(cell)}row.appendChild(pair);box.appendChild(row)}}
+function recordRow(title,meta,details=[],tone=''){const row=document.createElement('article');row.className=`record ${tone}`.trim();const head=document.createElement('div');head.className='record-head';const strong=document.createElement('strong');strong.textContent=title;const small=document.createElement('small');small.textContent=meta;head.append(strong,small);row.appendChild(head);for(const [label,value] of details){const line=document.createElement('div');line.className='record-line';const key=document.createElement('span');key.textContent=label;const val=document.createElement('code');val.textContent=value;line.append(key,val);row.appendChild(line)}return row}
+async function loadEvidence(){const epoch=await ensureEpoch();const box=$('#evidence-list');box.replaceChildren();if(!epoch){box.innerHTML='<div class="empty">Create an epoch before attaching evidence.</div>';return}const rows=await api(`/api/epochs/${epoch.id}/evidence`,state.operator);if(!rows.length){box.innerHTML='<div class="empty">No evidence attached.</div>';return}for(const item of rows){box.appendChild(recordRow(`${item.kind} · ${item.filename}`,`${bytes(item.size_bytes)} · ${formatTime(item.created_at)}`,[['sha256',item.sha256],['content type',item.content_type]]))}}
+async function loadReceipts(){const epoch=await ensureEpoch();const box=$('#receipts-list');box.replaceChildren();if(!epoch){box.innerHTML='<div class="empty">Create an epoch before inspecting receipts.</div>';return}const rows=await api(`/api/epochs/${epoch.id}/receipts`,state.operator);if(!rows.length){box.innerHTML='<div class="empty">No execution receipts yet.</div>';return}for(const item of rows){box.appendChild(recordRow(item.outcome,`${item.latency_ms} ms · ${formatTime(item.created_at)}`,[['reason',item.reason],['approved',shortHash(item.expected_fingerprint,24)],['observed',shortHash(item.observed_fingerprint,24)]],item.outcome==='EXECUTED'?'record-pass':'record-fail'))}}
+async function loadIntegrations(){await ensure();const data=await api('/api/system/integrations',state.operator);const box=$('#integration-cards');box.replaceChildren();const cards=[['GitLab Pipeline Hook',data.gitlab.status,[['event',data.gitlab.event],['binding',data.gitlab.binding]]],['Go Executor',data.executor.status,[['mode',data.executor.mode],['transport',data.executor.transport],['observation',data.executor.target_observation]]],['Database',data.database.status,[['backend',data.database.backend],['role',data.database.role]]],['gRPC Contract',data.grpc.status,[['contract',data.grpc.contract],['runtime',data.grpc.runtime_transport]]]];for(const [title,status,lines] of cards){const card=document.createElement('article');card.className='integration-card';const top=document.createElement('div');top.className='integration-top';const name=document.createElement('strong');name.textContent=title;const badge=document.createElement('span');badge.className=status==='contract-only'?'status status-warn':'status status-ok';badge.textContent=status;top.append(name,badge);card.appendChild(top);for(const [label,value] of lines){const line=document.createElement('div');line.className='integration-line';const key=document.createElement('span');key.textContent=label;const val=document.createElement('b');val.textContent=value;line.append(key,val);card.appendChild(line)}box.appendChild(card)}}
+const viewCopy={release:['PRODUCTION RELEASE / PAYMENTS-API','Approval is not enough.','Re-verify what will actually run.'],evidence:['BUILD PROVENANCE / IMMUTABLE EVIDENCE','Attach evidence to the epoch.','Hash it before anyone can trust it.'],receipts:['AUDIT TRAIL / EXECUTION RECEIPTS','A deployment decision needs a receipt.','Preserve exactly what was compared.'],integrations:['PLATFORM BOUNDARIES / INTEGRATIONS','Make every trust boundary visible.','Configured, executed, or contract-only.']};
+async function switchView(name){state.currentView=name;$$('.nav').forEach(el=>el.classList.toggle('active',el.dataset.view===name));$$('.view').forEach(el=>el.classList.toggle('active',el.dataset.viewPanel===name));const copy=viewCopy[name];$('#page-eyebrow').textContent=copy[0];$('#page-title').replaceChildren(document.createTextNode(copy[1]),document.createElement('br'),Object.assign(document.createElement('span'),{textContent:copy[2]}));try{if(name==='evidence')await loadEvidence();if(name==='receipts')await loadReceipts();if(name==='integrations')await loadIntegrations()}catch(e){if(name==='evidence')setInlineResult('#evidence-result',e.message,'fail');else console.error(e)}}
+$$('.nav').forEach(el=>el.addEventListener('click',()=>switchView(el.dataset.view)));
+$('#boot').onclick=async()=>{try{await ensure();state.epoch=await api('/api/demo/bootstrap',state.admin,{method:'POST'});state.drifted=false;$('#approve').disabled=false;$('#drift').disabled=true;$('#execute').disabled=true;$('#metric-state').textContent='DRAFT';$('#metric-pipeline').textContent=state.epoch.pipeline_status.toUpperCase();$('#metric-match').textContent='PENDING';syncEpochContext();setResult(`Epoch ${state.epoch.id.slice(0,8)} created. Approval will bind fingerprint ${state.epoch.fingerprint.slice(0,14)}…`)}catch(e){setResult(e.message,'fail')}};
+$('#approve').onclick=async()=>{try{await api(`/api/epochs/${state.epoch.id}/approve`,state.approver,{method:'POST'});state.epoch.state='APPROVED';syncEpochContext();$('#drift').disabled=false;$('#execute').disabled=false;$('#metric-state').textContent='APPROVED';setResult('Approval is now bound to the exact deployment fingerprint. You may execute as-is or inject drift.')}catch(e){setResult(e.message,'fail')}};
 $('#drift').onclick=async()=>{try{await api(`/api/demo/drift/${state.epoch.id}`,state.admin,{method:'POST',body:JSON.stringify({field:'artifact_digest',value:'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'})});state.drifted=true;$('#metric-match').textContent='DRIFTED';setResult('Artifact digest changed after approval. The next execution should fail closed.','fail')}catch(e){setResult(e.message,'fail')}};
-$('#execute').onclick=async()=>{try{const key=`ui-${Date.now()}-${Math.random().toString(16).slice(2)}`;const r=await api(`/api/epochs/${state.epoch.id}/execute`,state.operator,{method:'POST',body:JSON.stringify({idempotency_key:key})});$('#metric-state').textContent=r.outcome;$('#metric-match').textContent=r.outcome==='EXECUTED'?'MATCH':'BLOCKED';renderDiffs(r.differences);setResult(`${r.outcome}: ${r.reason}`,r.outcome==='EXECUTED'?'pass':'fail')}catch(e){setResult(e.message,'fail')}};
-
-async function runAutoDemo(mode){
-  try{
-    await ensure();
-    state.epoch=await api('/api/demo/bootstrap',state.admin,{method:'POST'});
-    $('#metric-state').textContent='DRAFT';
-    $('#metric-pipeline').textContent=state.epoch.pipeline_status.toUpperCase();
-    await api(`/api/epochs/${state.epoch.id}/approve`,state.approver,{method:'POST'});
-    $('#metric-state').textContent='APPROVED';
-    if(mode==='drift'){
-      await api(`/api/demo/drift/${state.epoch.id}`,state.admin,{method:'POST',body:JSON.stringify({field:'artifact_digest',value:'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'})});
-      $('#metric-match').textContent='DRIFTED';
-    }
-    const r=await api(`/api/epochs/${state.epoch.id}/execute`,state.operator,{method:'POST',body:JSON.stringify({idempotency_key:`auto-${mode}-0001`})});
-    $('#metric-state').textContent=r.outcome;
-    $('#metric-match').textContent=r.outcome==='EXECUTED'?'MATCH':'BLOCKED';
-    renderDiffs(r.differences);
-    setResult(`${r.outcome}: ${r.reason}`,r.outcome==='EXECUTED'?'pass':'fail');
-  }catch(e){ setResult(e.message,'fail'); }
-}
-const autoMode=new URLSearchParams(location.search).get('autodemo');
-if(autoMode==='drift'||autoMode==='happy') window.addEventListener('load',()=>runAutoDemo(autoMode));
+$('#execute').onclick=async()=>{try{const key=`ui-${Date.now()}-${Math.random().toString(16).slice(2)}`;const r=await api(`/api/epochs/${state.epoch.id}/execute`,state.operator,{method:'POST',body:JSON.stringify({idempotency_key:key})});state.epoch.state=r.outcome;syncEpochContext();$('#metric-state').textContent=r.outcome;$('#metric-match').textContent=r.outcome==='EXECUTED'?'MATCH':'BLOCKED';renderDiffs(r.differences);setResult(`${r.outcome}: ${r.reason}`,r.outcome==='EXECUTED'?'pass':'fail')}catch(e){setResult(e.message,'fail')}};
+$('#evidence-form').addEventListener('submit',async event=>{event.preventDefault();try{const epoch=await ensureEpoch();if(!epoch)throw new Error('Create an epoch first.');const file=$('#evidence-file').files[0];if(!file)throw new Error('Choose an evidence file.');const form=new FormData();form.append('kind',$('#evidence-kind').value);form.append('file',file);const item=await api(`/api/epochs/${epoch.id}/evidence`,state.operator,{method:'POST',body:form});setInlineResult('#evidence-result',`Stored ${item.filename} · sha256 ${shortHash(item.sha256,20)}`,'pass');$('#evidence-file').value='';await loadEvidence()}catch(e){setInlineResult('#evidence-result',e.message,'fail')}});
+$('#evidence-refresh').onclick=()=>loadEvidence().catch(e=>setInlineResult('#evidence-result',e.message,'fail'));
+$('#receipts-refresh').onclick=()=>loadReceipts().catch(console.error);
+$('#integrations-refresh').onclick=()=>loadIntegrations().catch(console.error);
+async function runAutoDemo(mode){try{await ensure();state.epoch=await api('/api/demo/bootstrap',state.admin,{method:'POST'});syncEpochContext();$('#metric-state').textContent='DRAFT';$('#metric-pipeline').textContent=state.epoch.pipeline_status.toUpperCase();await api(`/api/epochs/${state.epoch.id}/approve`,state.approver,{method:'POST'});state.epoch.state='APPROVED';syncEpochContext();$('#metric-state').textContent='APPROVED';if(mode==='drift'){await api(`/api/demo/drift/${state.epoch.id}`,state.admin,{method:'POST',body:JSON.stringify({field:'artifact_digest',value:'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'})});$('#metric-match').textContent='DRIFTED'}const r=await api(`/api/epochs/${state.epoch.id}/execute`,state.operator,{method:'POST',body:JSON.stringify({idempotency_key:`auto-${mode}-0001`})});state.epoch.state=r.outcome;syncEpochContext();$('#metric-state').textContent=r.outcome;$('#metric-match').textContent=r.outcome==='EXECUTED'?'MATCH':'BLOCKED';renderDiffs(r.differences);setResult(`${r.outcome}: ${r.reason}`,r.outcome==='EXECUTED'?'pass':'fail')}catch(e){setResult(e.message,'fail')}}
+const autoMode=new URLSearchParams(location.search).get('autodemo');if(autoMode==='drift'||autoMode==='happy')window.addEventListener('load',()=>runAutoDemo(autoMode));
