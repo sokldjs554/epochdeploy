@@ -54,6 +54,16 @@ After the service-style navigation was made functional, `scripts/browser-e2e.py`
 
 Each round produced seven screenshots. Across all three rounds there were **zero browser console errors, page errors, failed requests, or HTTP 4xx/5xx responses** during the UI flow. The sandbox's managed Chromium blocks top-level localhost navigation, so the E2E runner has a documented fallback: it loads the exact repository HTML/CSS/JS in-memory and proxies browser fetch/XHR requests to the real local FastAPI service. On unrestricted runners it navigates to the served page directly.
 
+### Remote Chromium evidence
+
+GitHub-hosted `Remote Verification` run **#5** (run id `35608531620`) independently exercised the same update on the production-shaped Compose path and completed both jobs successfully:
+
+- **unit-and-package:** all **31 Python tests**, package build, `go vet`, `go test -race -count=1 ./...`, and JavaScript syntax check.
+- **compose-postgres-smoke:** Docker image build/start, PostgreSQL 16 runtime/schema check, three two-service smoke rounds, Chromium installation, and the complete browser E2E flow above.
+- the workflow uploaded the seven remote Chromium screenshots as artifact `epochdeploy-browser-e2e` (artifact id `10643117861`, SHA-256 `4673c87a596e030a20cab636a149393fe972d69f1553ca0004bc3eaca6c1043d`).
+
+The downloaded remote artifact was inspected after the run. Evidence, Integrations, and stale-approval screens rendered without clipping or layout breakage; the Integrations view reported the live database backend as `postgresql`, and the stale flow visibly showed `DENIED_STALE` / `BLOCKED` with the approved-vs-observed artifact digest difference.
+
 ## Python/API coverage highlights
 
 The 31 passing tests include:
