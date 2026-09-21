@@ -39,6 +39,14 @@ def create_epoch(db: Session, payload, created_by: str, *, pipeline_status: str 
     return row
 
 
+def apply_gitlab_pipeline_event(db: Session, *, pipeline_id: str, status: str, pipeline_sha: str) -> int:
+    """Bind pipeline evidence only when the event SHA matches the epoch's immutable commit."""
+    rows = db.query(DeploymentEpoch).filter(DeploymentEpoch.pipeline_id == pipeline_id).all()
+    for row in rows:
+        row.pipeline_status = status if pipeline_sha == row.commit_sha else "sha_mismatch"
+    return len(rows)
+
+
 def approve_epoch(db: Session, epoch: DeploymentEpoch, approver: str) -> Approval:
     locked = db.execute(
         select(DeploymentEpoch).where(DeploymentEpoch.id == epoch.id).with_for_update()
@@ -132,7 +140,6 @@ def execute_epoch(db: Session, epoch: DeploymentEpoch, idempotency_key: str) -> 
     }))
     db.commit()
     return receipt, result.differences
-
 
 
 async def save_evidence(db: Session, epoch: DeploymentEpoch, kind: str, upload: UploadFile) -> ArtifactEvidence:
