@@ -43,10 +43,19 @@ rm -f "$ROOT/verify.db"
 rm -rf "$ROOT/verify_uploads"
 rm -f /tmp/epochdeploy-executor.log /tmp/epochdeploy-api.log
 
-EPOCHDEPLOY_EXECUTOR_PORT="$EXECUTOR_PORT" EPOCHDEPLOY_EXECUTOR_HMAC_SECRET="$EXECUTOR_SECRET" /tmp/epochdeploy-executor >/tmp/epochdeploy-executor.log 2>&1 &
+EPOCHDEPLOY_EXECUTOR_PORT="$EXECUTOR_PORT" \
+EPOCHDEPLOY_EXECUTOR_HMAC_SECRET="$EXECUTOR_SECRET" \
+/tmp/epochdeploy-executor >/tmp/epochdeploy-executor.log 2>&1 &
 GO_PID=$!
 
-EPOCHDEPLOY_EXECUTOR_MODE=http EPOCHDEPLOY_EXECUTOR_URL="http://127.0.0.1:$EXECUTOR_PORT" EPOCHDEPLOY_EXECUTOR_HMAC_SECRET="$EXECUTOR_SECRET" EPOCHDEPLOY_DATABASE_URL="sqlite:///$ROOT/verify.db" EPOCHDEPLOY_UPLOAD_DIR="$ROOT/verify_uploads" EPOCHDEPLOY_JWT_SECRET='verify-secret-0123456789abcdef0123456789' EPOCHDEPLOY_DEMO_MODE=true PYTHONPATH=orchestrator uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT" >/tmp/epochdeploy-api.log 2>&1 &
+EPOCHDEPLOY_EXECUTOR_MODE=http \
+EPOCHDEPLOY_EXECUTOR_URL="http://127.0.0.1:$EXECUTOR_PORT" \
+EPOCHDEPLOY_EXECUTOR_HMAC_SECRET="$EXECUTOR_SECRET" \
+EPOCHDEPLOY_DATABASE_URL="sqlite:///$ROOT/verify.db" \
+EPOCHDEPLOY_UPLOAD_DIR="$ROOT/verify_uploads" \
+EPOCHDEPLOY_JWT_SECRET='verify-secret-0123456789abcdef0123456789' \
+EPOCHDEPLOY_DEMO_MODE=true \
+PYTHONPATH=orchestrator uvicorn app.main:app --host 127.0.0.1 --port "$API_PORT" >/tmp/epochdeploy-api.log 2>&1 &
 API_PID=$!
 
 cleanup(){ kill "$API_PID" "$GO_PID" 2>/dev/null || true; wait "$API_PID" "$GO_PID" 2>/dev/null || true; }
@@ -61,7 +70,9 @@ for i in $(seq 1 80); do curl -fsS "http://127.0.0.1:$API_PORT/healthz" >/dev/nu
 kill -0 "$GO_PID"
 kill -0 "$API_PID"
 
-UNSIGNED_STATUS=$(curl -sS -o /tmp/epochdeploy-unsigned.json -w '%{http_code}'   -H 'content-type: application/json'   -d '{"expected":{},"observed":{}}' "http://127.0.0.1:$EXECUTOR_PORT/v1/execute")
+UNSIGNED_STATUS=$(curl -sS -o /tmp/epochdeploy-unsigned.json -w '%{http_code}' \
+  -H 'content-type: application/json' \
+  -d '{"expected":{},"observed":{}}' "http://127.0.0.1:$EXECUTOR_PORT/v1/execute")
 [[ "$UNSIGNED_STATUS" == "401" ]]
 
 curl -fsS "http://127.0.0.1:$API_PORT/" | grep -q 'EpochDeploy Control Plane'
