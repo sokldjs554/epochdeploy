@@ -80,8 +80,10 @@ This switches the orchestrator to PostgreSQL and talks to the separate Go servic
 - live HTTP smoke script (`scripts/smoke.sh`);
 - GitLab Docker Compose integration job.
 
-## Current verification boundary
+## Verification boundary
 
-The repository is designed for PostgreSQL, Docker Compose, and GitLab CI, but those require a runtime that has Docker/PostgreSQL/networked dependency installation. SQLite exists only to let core orchestration behavior be tested in a zero-dependency environment. Verification evidence should distinguish those two modes rather than claiming a deployment that was not actually run.
+The local verification harness runs Python tests, Go race/vet checks, package installation, signed two-service HTTP smoke tests, and repeated stale-approval checks. A supplementary GitHub-hosted workflow also builds the Docker images, starts the Compose stack with **PostgreSQL 16**, verifies the production-shaped database path, and repeats the end-to-end smoke flow.
+
+GitLab CI remains the job-aligned pipeline contract in `.gitlab-ci.yml`; a real GitLab Runner has not been connected in this environment. Generated gRPC transport, Gin, browser E2E screenshots, and Kubernetes are likewise not claimed as executed. See `docs/verification.md` for the exact evidence and remaining boundaries.
 
 See `docs/architecture.md`, `docs/demo-script.md`, and `docs/verification.md`.

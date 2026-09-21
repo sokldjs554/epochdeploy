@@ -32,6 +32,15 @@ The smoke script verifies both:
 
 Result: the latest candidate state has three consecutive full verification passes and **nine end-to-end smoke repetitions**.
 
+## Remote Docker/PostgreSQL verification
+
+A supplementary GitHub pull-request workflow (`Remote Verification`) was then executed against the synchronized repository. Its first complete run (`35595521040`) finished with both jobs successful:
+
+- **unit-and-package:** project installation, all **29 Python tests**, Python package build, `go vet`, `go test -race -count=1 ./...`, and JavaScript syntax check.
+- **compose-postgres-smoke:** `docker compose config`, image build/start, PostgreSQL 16 readiness, existence of the `deployment_epochs` table in the live PostgreSQL database, and **three repeated two-service smoke rounds**, followed by clean teardown.
+
+This closes the earlier runtime gap for Docker Compose and the PostgreSQL-backed application path. It does **not** substitute for an actual GitLab Runner execution, and it is not a production capacity benchmark.
+
 ## Python/API coverage highlights
 
 The 29 passing tests include:
@@ -106,11 +115,10 @@ The verification process itself exposed and fixed several issues:
 
 These items are **not** claimed complete:
 
-- **Docker Compose build/run:** Docker is not installed in the current execution environment.
-- **Real PostgreSQL runtime/query plans/concurrency:** no PostgreSQL server/client is installed here. The reference schema is in `db/migrations/001_initial.sql`; SQLite is only the local/test mode.
-- **Actual GitLab Runner execution:** `.gitlab-ci.yml` is present and structurally reviewed, but no runner is connected here.
+- **PostgreSQL query-plan and database-lock contention analysis:** the PostgreSQL-backed Compose path is now remotely verified, but `EXPLAIN (ANALYZE, BUFFERS)` tuning and multi-writer lock-contention testing have not been run.
+- **Actual GitLab Runner execution:** `.gitlab-ci.yml` is present and structurally reviewed, but no runner is connected here. The successful GitHub-hosted workflow is supplementary validation, not a claim that GitLab CI itself ran.
 - **Generated gRPC transport:** `proto/executor.proto` documents the target service contract, but `protoc` and required networked Go dependencies are unavailable here. The verified transport is signed HTTP/JSON.
 - **Gin transport:** the verified Go service deliberately uses the standard library HTTP server; Gin is not falsely claimed as executed.
 - **Browser screenshot/E2E clicks:** dashboard HTML/JS is served and syntax-checked. A Chromium headless screenshot attempt in this environment did not terminate reliably, so visual browser verification remains open.
 - **Kubernetes deployment:** intentionally deferred until the container path can be executed and verified.
-- **Remote GitHub repository:** `sokldjs554/epochdeploy` now exists. Source import is performed through the connected GitHub integration; remote tree integrity is checked against local Git blob SHAs before the release handoff is considered synchronized.
+- **Remote GitHub repository:** `sokldjs554/epochdeploy` now exists. The imported release tree was compared file-by-file against local Git blob SHAs. That check caught one omitted `executor/Dockerfile` and one mismatched verification script; both were corrected, after which all 50 release files matched before the remote-verification workflow was added.
