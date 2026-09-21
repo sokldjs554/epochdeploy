@@ -11,6 +11,7 @@ EPOCH=$(curl -fsS -X POST -H "Authorization: Bearer $ADMIN" "$BASE/api/demo/boot
 curl -fsS -X POST -H "Authorization: Bearer $ADMIN" "$BASE/api/demo/gitlab-success/$EPOCH" >/dev/null
 curl -fsS -X POST -H "Authorization: Bearer $AP" "$BASE/api/epochs/$EPOCH/approve" >/dev/null
 curl -fsS -X POST -H 'content-type: application/json' -H "Authorization: Bearer $OP" -d '{"idempotency_key":"smoke-happy-0001"}' "$BASE/api/epochs/$EPOCH/execute" | grep -q 'EXECUTED'
+# Re-bootstrap so the second execution has a fresh approval and receipt namespace.
 EPOCH=$(curl -fsS -X POST -H "Authorization: Bearer $ADMIN" "$BASE/api/demo/bootstrap" | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
 curl -fsS -X POST -H "Authorization: Bearer $ADMIN" "$BASE/api/demo/gitlab-success/$EPOCH" >/dev/null
 curl -fsS -X POST -H "Authorization: Bearer $AP" "$BASE/api/epochs/$EPOCH/approve" >/dev/null
