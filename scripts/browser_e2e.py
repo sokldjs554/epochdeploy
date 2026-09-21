@@ -36,6 +36,7 @@ def run() -> None:
         expect(page.locator("#metric-state")).to_have_text("READY")
         page.screenshot(path=str(OUT / "01-initial.png"), full_page=True)
 
+        # Exact release identity stays pending until GitLab evidence is bound to the same SHA.
         page.locator("#boot").click()
         expect(page.locator("#metric-state")).to_have_text("DRAFT")
         expect(page.locator("#metric-pipeline")).to_have_text("PENDING")
@@ -45,6 +46,7 @@ def run() -> None:
         page.locator("#approve").click()
         expect(page.locator("#metric-state")).to_have_text("APPROVED")
 
+        # The Evidence section is a real multipart upload path, not decorative navigation.
         page.locator('.nav[data-view="evidence"]').click()
         expect(page.locator('[data-view-panel="evidence"]')).to_be_visible()
         with tempfile.NamedTemporaryFile("w", suffix="-provenance.txt", delete=False) as handle:
@@ -58,6 +60,7 @@ def run() -> None:
         page.screenshot(path=str(OUT / "02-evidence-ledger.png"), full_page=True)
         Path(evidence_path).unlink(missing_ok=True)
 
+        # Integration cards are backed by API status and the recorded Pipeline Hook.
         page.locator('.nav[data-view="integrations"]').click()
         expect(page.locator("#integration-gitlab")).to_contain_text("configured")
         expect(page.locator("#integration-gitlab")).to_contain_text("Pipeline Hook")
@@ -65,6 +68,7 @@ def run() -> None:
         expect(page.locator("#integration-executor")).to_contain_text("timestamped HMAC-SHA256")
         page.screenshot(path=str(OUT / "03-integrations.png"), full_page=True)
 
+        # Happy execution persists a receipt with identical expected/observed fingerprints.
         page.locator('.nav[data-view="release"]').click()
         page.locator("#execute").click()
         expect(page.locator("#metric-state")).to_have_text("EXECUTED")
@@ -73,6 +77,7 @@ def run() -> None:
         expect(page.locator("#receipt-list")).to_contain_text("EXECUTED")
         page.screenshot(path=str(OUT / "04-happy-receipt.png"), full_page=True)
 
+        # Fresh epoch: change the live artifact after approval and require fail-closed behavior.
         page.locator('.nav[data-view="release"]').click()
         page.locator("#boot").click()
         expect(page.locator("#metric-pipeline")).to_have_text("PENDING")
