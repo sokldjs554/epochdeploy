@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .db import Base, SessionLocal, engine, get_db
 from .fingerprint import fingerprint
+from .executor_client import executor_implementation
 from .models import Approval, ArtifactEvidence, DeploymentEpoch, ExecutionReceipt, LiveTarget, User, WebhookEvent
 from .schemas import DriftRequest, EpochCreate, ExecuteRequest, LoginRequest, ReceiptOut, TargetObservation, TokenResponse
 from .security import current_user, hash_password, issue_token, require_role, verify_password
@@ -176,6 +177,7 @@ def integration_status(user: User = Depends(current_user)):
         "executor": {
             "status": "configured",
             "mode": settings.executor_mode,
+            "implementation": executor_implementation(),
             "transport": "HMAC-SHA256 signed HTTP/JSON",
             "target_observation": "executor-owned",
         },
