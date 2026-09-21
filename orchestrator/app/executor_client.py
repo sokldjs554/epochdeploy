@@ -82,5 +82,18 @@ class HTTPExecutorClient:
         )
 
 
+def executor_implementation() -> str:
+    if settings.executor_mode != "http":
+        return "local"
+    try:
+        with httpx.Client(timeout=1.5) as client:
+            response = client.get(f"{settings.executor_url.rstrip('/')}/healthz")
+            response.raise_for_status()
+            data = response.json()
+            return str(data.get("implementation") or "unknown")
+    except (httpx.HTTPError, ValueError, TypeError):
+        return "unavailable"
+
+
 def executor_client():
     return HTTPExecutorClient() if settings.executor_mode == "http" else LocalExecutorClient()
