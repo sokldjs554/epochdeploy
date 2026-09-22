@@ -9,6 +9,7 @@ from .models import (
     Approval,
     ArtifactEvidence,
     ChangeRequest,
+    CapabilityGrant,
     DeploymentEpoch,
     ExecutionReceipt,
     PassportEvent,
@@ -91,6 +92,12 @@ def build_passport(db: Session, epoch: DeploymentEpoch) -> dict[str, Any]:
         .order_by(ExecutionReceipt.created_at.asc())
         .all()
     )
+    capabilities = (
+        db.query(CapabilityGrant)
+        .filter(CapabilityGrant.epoch_id == epoch.id)
+        .order_by(CapabilityGrant.created_at.asc())
+        .all()
+    )
     events = (
         db.query(PassportEvent)
         .filter(PassportEvent.epoch_id == epoch.id)
@@ -135,6 +142,19 @@ def build_passport(db: Session, epoch: DeploymentEpoch) -> dict[str, Any]:
             "content_type": row.content_type,
             "created_at": row.created_at,
         } for row in evidence],
+        "capabilities": [{
+            "id": row.id,
+            "actor_type": row.actor_type,
+            "actor_id": row.actor_id,
+            "project": row.project,
+            "environment": row.environment,
+            "action": row.action,
+            "fingerprint": row.fingerprint,
+            "issued_by": row.issued_by,
+            "expires_at": row.expires_at,
+            "revoked_at": row.revoked_at,
+            "created_at": row.created_at,
+        } for row in capabilities],
         "executions": [{
             "id": row.id,
             "outcome": row.outcome,
