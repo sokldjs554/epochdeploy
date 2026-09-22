@@ -124,6 +124,22 @@ class PassportEvent(Base):
     )
 
 
+class CapabilityGrant(Base):
+    __tablename__ = "capability_grants"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    epoch_id: Mapped[str] = mapped_column(ForeignKey("deployment_epochs.id", ondelete="CASCADE"), index=True)
+    actor_type: Mapped[str] = mapped_column(String(32), index=True)
+    actor_id: Mapped[str] = mapped_column(String(120), index=True)
+    project: Mapped[str] = mapped_column(String(120))
+    environment: Mapped[str] = mapped_column(String(32))
+    action: Mapped[str] = mapped_column(String(40))
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    issued_by: Mapped[str] = mapped_column(String(80))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 class WebhookEvent(Base):
     __tablename__ = "webhook_events"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
