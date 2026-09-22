@@ -30,7 +30,7 @@ JWT Operator/Approver ┘          │                    │
 ### Role split
 
 - **FastAPI** — orchestration, GitLab webhook ingestion, JWT/RBAC, evidence upload, relational workflow state, receipts.
-- **Go** — authenticated execution boundary, independent live-target observation, and final TOCTOU check.
+- **Go/Gin** — production-shaped authenticated execution boundary, independent live-target observation, and final TOCTOU check. A stdlib adapter remains for zero-dependency local verification.
 - **PostgreSQL** — epochs, approvals, live target observations, evidence, receipts, outbox.
 - **GitLab CI** — test stages plus a Docker Compose contract job.
 - **gRPC contract** — `proto/executor.proto`; HTTP/JSON is the first runnable transport so local development does not depend on `protoc`.
@@ -64,7 +64,7 @@ Open `http://localhost:8000`.
 docker compose up --build
 ```
 
-This switches the orchestrator to PostgreSQL and talks to the separate Go service over signed HTTP. Executor requests use timestamped HMAC-SHA256 and the executor port stays internal to the Compose network. See `proto/executor.proto` for the gRPC service contract.
+This switches the orchestrator to PostgreSQL and talks to the separate **Go/Gin** executor over signed HTTP. Executor requests use timestamped HMAC-SHA256 and the executor port stays internal to the Compose network. See `proto/executor.proto` for the gRPC service contract.
 
 ## Test strategy
 
@@ -85,6 +85,6 @@ This switches the orchestrator to PostgreSQL and talks to the separate Go servic
 
 The local verification harness runs Python tests, Go race/vet checks, package installation, signed two-service HTTP smoke tests, and repeated stale-approval checks. A separate Chromium E2E script clicks through the service UI, performs a real evidence upload, inspects execution receipts and integration status, then verifies both `EXECUTED` and `DENIED_STALE` flows. A supplementary GitHub-hosted workflow also builds the Docker images, starts the Compose stack with **PostgreSQL 16**, verifies the production-shaped database path, and repeats the end-to-end smoke flow.
 
-GitLab CI remains the job-aligned pipeline contract in `.gitlab-ci.yml`; a real GitLab Runner has not been connected in this environment. Generated gRPC transport, Gin, and Kubernetes are not claimed as executed; browser E2E is now part of the verification evidence. See `docs/verification.md` for the exact evidence and remaining boundaries.
+GitLab CI remains the job-aligned pipeline contract in `.gitlab-ci.yml`; a real GitLab Runner has not been connected in this environment. The Gin executor is now exercised in Docker Compose and remote Chromium E2E. Generated gRPC transport and Kubernetes are still not claimed as executed; browser E2E is part of the verification evidence. See `docs/verification.md` for the exact evidence and remaining boundaries.
 
 See `docs/architecture.md`, `docs/demo-script.md`, and `docs/verification.md`.
