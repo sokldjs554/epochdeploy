@@ -17,10 +17,10 @@ from .db import Base, SessionLocal, engine, get_db
 from .fingerprint import fingerprint
 from .executor_client import executor_implementation
 from .governance import build_passport, create_change_request, record_event
-from .models import Approval, ArtifactEvidence, ChangeRequest, DeploymentEpoch, ExecutionReceipt, LiveTarget, PassportEvent, User, WebhookEvent
-from .schemas import AgentChangeCreate, DriftRequest, EpochCreate, ExecuteRequest, LoginRequest, ReceiptOut, TargetObservation, TokenResponse
+from .models import Approval, ArtifactEvidence, CapabilityGrant, ChangeRequest, DeploymentEpoch, ExecutionReceipt, LiveTarget, PassportEvent, User, WebhookEvent
+from .schemas import AgentChangeCreate, AgentExecuteRequest, CapabilityIssueRequest, DriftRequest, EpochCreate, ExecuteRequest, LoginRequest, ReceiptOut, TargetObservation, TokenResponse
 from .security import current_user, hash_password, issue_token, require_role, verify_password
-from .services import approve_epoch, create_epoch, epoch_identity, execute_epoch, save_evidence, sync_executor_observation, upsert_target
+from .services import approve_epoch, create_epoch, epoch_identity, execute_agent_epoch, execute_epoch, issue_execution_capability, save_evidence, sync_executor_observation, upsert_target
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -150,6 +150,52 @@ def approve(epoch_id: str, user: User = Depends(require_role("approver", "admin"
     row = _epoch_or_404(db, epoch_id)
     approval = approve_epoch(db, row, user.username)
     return {"epoch_id": row.id, "state": row.state, "approved_fingerprint": approval.approved_fingerprint, "approver": approval.approver}
+
+
+@app.post("/api/epochs/{epoch_id}/capabilities", status_code=201)
+def issue_capability(
+    epoch_id: str,
+    payload: CapabilityIssueRequest,
+    user: User = Depends(require_role("approver", "admin")),
+    db: Session = Depends(get_db),
+):
+    row = _epoch_or_404(db, epoch_id)
+    grant, token = issue_execution_capability(db, row, user.username, payload.ttl_seconds)
+    return {
+        "capability_token": token,
+        "grant": {
+            "id": grant.id,
+            "epoch_id": grant.epoch_id,
+            "actor_type": grant.actor_type,
+            "actor_id": grant.actor_id,
+            "project": grant.project,
+            "environment": grant.environment,
+            "action": grant.action,
+            "fingerprint": grant.fingerprint,
+            "issued_by": grant.issued_by,
+            "expires_at": grant.expires_at,
+        },
+    }
+
+
+@app.post("/api/agent/epochs/{epoch_id}/execute", response_model=ReceiptOut)
+def execute_as_agent(
+    epoch_id: str,
+    payload: AgentExecuteRequest,
+    user: User = Depends(require_role("operator", "admin")),
+    db: Session = Depends(get_db),
+):
+    row = _epoch_or_404(db, epoch_id)
+    receipt, diffs = execute_agent_epoch(db, row, payload.idempotency_key, payload.capability_token)
+    return ReceiptOut(
+        epoch_id=row.id,
+        outcome=receipt.outcome,
+        expected_fingerprint=receipt.expected_fingerprint,
+        observed_fingerprint=receipt.observed_fingerprint,
+        reason=receipt.reason,
+        latency_ms=receipt.latency_ms,
+        differences=diffs,
+    )
 
 
 @app.post("/api/epochs/{epoch_id}/execute", response_model=ReceiptOut)
@@ -313,7 +359,7 @@ async def gitlab_webhook(
 @app.post("/api/demo/bootstrap")
 def demo_bootstrap(user: User = Depends(require_role("admin")), db: Session = Depends(get_db)):
     _demo_only()
-    for model in (ExecutionReceipt, Approval, LiveTarget, DeploymentEpoch):
+    for model in (ExecutionReceipt, CapabilityGrant, Approval, LiveTarget, DeploymentEpoch):
         db.query(model).delete()
     db.commit()
     payload = EpochCreate(
