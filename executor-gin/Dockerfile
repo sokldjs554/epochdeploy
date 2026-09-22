@@ -9,5 +9,5 @@ RUN go mod download \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/executor-gin /executor-gin
-EXPOSE 9080
+EXPOSE 9080 9090
 ENTRYPOINT ["/executor-gin"]
