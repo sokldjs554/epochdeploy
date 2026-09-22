@@ -13,6 +13,7 @@
       <div class="brand"><span class="mark">E</span><div><b>EpochDeploy</b><small>AI-safe release control plane</small></div></div>
       <nav aria-label="Control plane navigation">
         <button class="nav active" data-view="release">Release Control</button>
+        <button class="nav" data-view="passport">Change Passport</button>
         <button class="nav" data-view="evidence">Evidence</button>
         <button class="nav" data-view="receipts">Execution Receipts</button>
         <button class="nav" data-view="integrations">Integrations</button>
@@ -50,6 +51,19 @@
         <section class="panel architecture">
           <div class="panel-head"><div><small>SERVICE BOUNDARIES</small><h2>Python orchestrates. Go decides at the edge.</h2></div></div>
           <div class="flow"><div><b>GitLab</b><small>pipeline hook</small></div><i>→</i><div><b>FastAPI</b><small>orchestration · JWT · upload</small></div><i>→</i><div><b>PostgreSQL</b><small>epoch · approval · receipt</small></div><i>→</i><div class="accent"><b>Go Executor</b><small>final immutable re-check</small></div></div>
+        </section>
+      </div>
+
+      <div class="view" data-view-panel="passport">
+        <section class="panel">
+          <div class="panel-head"><div><small>AGENT GOVERNANCE</small><h2>Change Passport</h2></div><button id="passport-refresh" class="ghost" type="button">Refresh</button></div>
+          <p class="supporting">One audit surface connects why the change exists, which actor requested it, what immutable release was approved, and what the execution boundary actually observed.</p>
+          <div id="passport-epoch" class="epoch-context">Create an epoch first.</div>
+          <div id="passport-summary" class="passport-grid"><div class="empty">No change passport yet.</div></div>
+        </section>
+        <section class="panel architecture">
+          <div class="panel-head"><div><small>APPEND-ONLY AUDIT</small><h2>Change timeline</h2></div><span class="badge">WHY → EXECUTION</span></div>
+          <div id="passport-timeline" class="timeline"><div class="empty">No governance events yet.</div></div>
         </section>
       </div>
 
