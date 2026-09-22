@@ -24,6 +24,8 @@ type executionContext struct {
 	Action              string `json:"action"`
 	ApprovedFingerprint string `json:"approved_fingerprint"`
 	CapabilityToken     string `json:"capability_token"`
+	PolicyDecision      string `json:"policy_decision,omitempty"`
+	PolicyRule          string `json:"policy_rule,omitempty"`
 }
 
 type executeRequest struct {
