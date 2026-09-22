@@ -95,6 +95,35 @@ class ExecutionReceipt(Base):
     __table_args__ = (UniqueConstraint("epoch_id", "idempotency_key", name="uq_receipt_epoch_idempotency"),)
 
 
+class ChangeRequest(Base):
+    __tablename__ = "change_requests"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    epoch_id: Mapped[str] = mapped_column(ForeignKey("deployment_epochs.id", ondelete="CASCADE"), unique=True, index=True)
+    external_ref: Mapped[str] = mapped_column(String(120), index=True)
+    reason: Mapped[str] = mapped_column(Text)
+    actor_type: Mapped[str] = mapped_column(String(32), index=True)
+    actor_id: Mapped[str] = mapped_column(String(120), index=True)
+    requested_by: Mapped[str] = mapped_column(String(80), index=True)
+    action: Mapped[str] = mapped_column(String(40), default="deploy")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class PassportEvent(Base):
+    __tablename__ = "passport_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    epoch_id: Mapped[str] = mapped_column(ForeignKey("deployment_epochs.id", ondelete="CASCADE"), index=True)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    actor_type: Mapped[str] = mapped_column(String(32), index=True)
+    actor_id: Mapped[str] = mapped_column(String(120), index=True)
+    summary: Mapped[str] = mapped_column(String(255))
+    details_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+    __table_args__ = (
+        Index("ix_passport_epoch_created", "epoch_id", "created_at"),
+    )
+
+
 class WebhookEvent(Base):
     __tablename__ = "webhook_events"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
