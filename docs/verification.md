@@ -15,7 +15,7 @@ Each successful full round performed:
 - `gofmt -l executor` (must return no files)
 - `go vet ./...`
 - `go test -race -count=1 ./...`
-- `python -m pytest` -> **35 passed**
+- `python -m pytest` -> **40 passed**
 - build a Python wheel from `pyproject.toml`, install it into an isolated target, import `app.main`, and verify packaged static assets
 - build a fresh Go executor binary
 - assert the dedicated verification ports are unused before starting services, preventing a stale process from satisfying health checks
@@ -73,9 +73,22 @@ Remote Verification run **#19** (run id `35721783280`) exercised the first gover
 - Chromium now visits **Change Passport** in both happy and blocked releases and verifies `ISSUE-184`, `release-agent-01`, approval, `EXECUTED`, `DENIED_STALE`, and the append-only timeline.
 - downloaded screenshots were visually inspected; WHY / WHO / WHAT / APPROVAL / EVIDENCE / EXECUTION cards and the timeline render without clipping in both terminal states.
 
+## Scoped Capability verification
+
+Stage-2 remote verification exercised short-lived agent capabilities across both FastAPI and the Gin execution boundary.
+
+- capability issuance is rejected before human approval and is limited to AI-agent-originated changes;
+- the capability scope binds `epoch_id + actor_type + actor_id + project + environment + action + fingerprint + exp`;
+- FastAPI rejects tampered, expired and cross-epoch tokens and checks the persisted grant is still active;
+- Gin independently verifies HS256 signature, expiry, actor/scope and that the token fingerprint matches the exact expected release;
+- Chromium E2E performs `Create → Approve → Issue Capability → Agent Execute` for both `EXECUTED` and `DENIED_STALE` flows;
+- Change Passport renders grant metadata and expiry but never stores or displays the raw capability token.
+
+The first complete capability run passed **40 Python tests**, stdlib Go tests, Gin lock/vet/race tests, Docker/PostgreSQL smoke and Chromium E2E. Verification also exposed a demo HMAC key shorter than the RFC 7518 SHA-256 recommendation; the default/example/Compose capability key was lengthened to at least 32 bytes before the final stage-2 run.
+
 ## Python/API coverage highlights
 
-The 35 passing tests include:
+The 40 passing tests include:
 
 - JWT login and unauthenticated rejection
 - RBAC: operator cannot approve
