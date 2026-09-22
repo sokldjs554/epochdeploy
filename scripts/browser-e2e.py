@@ -74,6 +74,19 @@ def main() -> None:
         expect_text(page, "h1", "Approval is not enough")
         page.screenshot(path=OUT / "01-release-initial.png", full_page=True)
 
+        # Policy dry-run uses the same engine that gates capability issuance.
+        page.locator('.nav[data-view="policy"]').click()
+        expect_text(page, "h1", "Simulate authority before execution")
+        policy_buttons = page.locator(".policy-run")
+        policy_buttons.nth(0).click()
+        expect_text(page, "#policy-scenarios", "ALLOW · allow-agent-nonprod-write")
+        policy_buttons.nth(1).click()
+        expect_text(page, "#policy-scenarios", "ASK · ask-agent-production-write")
+        policy_buttons.nth(2).click()
+        expect_text(page, "#policy-scenarios", "DENY · deny-destructive-action")
+        page.screenshot(path=OUT / "02-policy-dry-run.png", full_page=True)
+        page.locator('.nav[data-view="release"]').click()
+
         # Happy execution path.
         page.locator("#boot").click()
         expect_text(page, "#result", "created")
@@ -84,7 +97,7 @@ def main() -> None:
         page.locator("#execute").click()
         expect_text(page, "#result", "EXECUTED")
         expect_text(page, "#metric-match", "MATCH")
-        page.screenshot(path=OUT / "02-release-happy.png", full_page=True)
+        page.screenshot(path=OUT / "03-release-happy.png", full_page=True)
 
         # Agent governance passport links why/who to approval and execution.
         page.locator('.nav[data-view="passport"]').click()
@@ -98,7 +111,7 @@ def main() -> None:
         expect_text(page, "#passport-timeline", "CAPABILITY_ISSUED")
         expect_text(page, "#passport-timeline", "APPROVED")
         expect_text(page, "#passport-timeline", "EXECUTED")
-        page.screenshot(path=OUT / "03-change-passport-happy.png", full_page=True)
+        page.screenshot(path=OUT / "04-change-passport-happy.png", full_page=True)
 
         # Evidence navigation + real multipart upload + ledger refresh.
         page.locator('.nav[data-view="evidence"]').click()
@@ -113,14 +126,14 @@ def main() -> None:
         expect_text(page, "#evidence-result", "Stored build-provenance.txt")
         expect_text(page, "#evidence-list", "build-provenance.txt")
         expect_text(page, "#evidence-list", "sha256")
-        page.screenshot(path=OUT / "04-evidence-ledger.png", full_page=True)
+        page.screenshot(path=OUT / "05-evidence-ledger.png", full_page=True)
 
         # Existing receipt is discoverable from another view.
         page.locator('.nav[data-view="receipts"]').click()
         expect_text(page, "h1", "A deployment decision needs a receipt")
         expect_text(page, "#receipts-list", "EXECUTED")
         expect_text(page, "#receipts-list", "approved deployment identity matches live target")
-        page.screenshot(path=OUT / "05-receipts-happy.png", full_page=True)
+        page.screenshot(path=OUT / "06-receipts-happy.png", full_page=True)
 
         # Integration view reports real runtime boundary and contract-only gRPC honestly.
         page.locator('.nav[data-view="integrations"]').click()
@@ -133,7 +146,7 @@ def main() -> None:
         expected_executor = os.getenv("EPOCHDEPLOY_EXPECT_EXECUTOR_IMPLEMENTATION")
         if expected_executor:
             expect_text(page, "#integration-cards", expected_executor)
-        page.screenshot(path=OUT / "06-integrations.png", full_page=True)
+        page.screenshot(path=OUT / "07-integrations.png", full_page=True)
 
         # Fresh epoch: stale approval is blocked and the diff is rendered safely.
         page.locator('.nav[data-view="release"]').click()
@@ -149,18 +162,18 @@ def main() -> None:
         expect_text(page, "#result", "DENIED_STALE")
         expect_text(page, "#metric-match", "BLOCKED")
         expect_text(page, "#diffs", "artifact_digest")
-        page.screenshot(path=OUT / "07-release-drift-blocked.png", full_page=True)
+        page.screenshot(path=OUT / "08-release-drift-blocked.png", full_page=True)
 
         page.locator('.nav[data-view="receipts"]').click()
         expect_text(page, "#receipts-list", "DENIED_STALE")
         expect_text(page, "#receipts-list", "artifact_digest")
-        page.screenshot(path=OUT / "08-receipts-blocked.png", full_page=True)
+        page.screenshot(path=OUT / "09-receipts-blocked.png", full_page=True)
 
         page.locator('.nav[data-view="passport"]').click()
         expect_text(page, "#passport-summary", "DENIED_STALE")
         expect_text(page, "#passport-timeline", "DENIED_STALE")
         expect_text(page, "#passport-timeline", "artifact_digest")
-        page.screenshot(path=OUT / "09-change-passport-blocked.png", full_page=True)
+        page.screenshot(path=OUT / "10-change-passport-blocked.png", full_page=True)
 
         browser.close()
 

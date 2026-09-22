@@ -18,7 +18,8 @@ from .fingerprint import fingerprint
 from .executor_client import executor_implementation
 from .governance import build_passport, create_change_request, record_event
 from .models import Approval, ArtifactEvidence, CapabilityGrant, ChangeRequest, DeploymentEpoch, ExecutionReceipt, LiveTarget, PassportEvent, User, WebhookEvent
-from .schemas import AgentChangeCreate, AgentExecuteRequest, CapabilityIssueRequest, DriftRequest, EpochCreate, ExecuteRequest, LoginRequest, ReceiptOut, TargetObservation, TokenResponse
+from .policy import evaluate_policy
+from .schemas import AgentChangeCreate, AgentExecuteRequest, CapabilityIssueRequest, DriftRequest, EpochCreate, ExecuteRequest, LoginRequest, PolicyDryRunRequest, ReceiptOut, TargetObservation, TokenResponse
 from .security import current_user, hash_password, issue_token, require_role, verify_password
 from .services import approve_epoch, create_epoch, epoch_identity, execute_agent_epoch, execute_epoch, issue_execution_capability, save_evidence, sync_executor_observation, upsert_target
 
@@ -93,6 +94,28 @@ def api_create_epoch(payload: EpochCreate, user: User = Depends(require_role("op
     return epoch_view(db, row)
 
 
+@app.post("/api/policy/dry-run")
+def policy_dry_run(
+    payload: PolicyDryRunRequest,
+    user: User = Depends(current_user),
+):
+    decision = evaluate_policy(
+        actor_type=payload.actor_type,
+        action=payload.action,
+        environment=payload.environment,
+    )
+    return {
+        "actor_type": payload.actor_type,
+        "action": payload.action,
+        "project": payload.project,
+        "environment": payload.environment,
+        "decision": decision.decision,
+        "rule_id": decision.rule_id,
+        "reason": decision.reason,
+        "required_controls": list(decision.required_controls),
+    }
+
+
 @app.post("/api/agent/changes", status_code=201)
 def create_agent_change(
     payload: AgentChangeCreate,
@@ -156,7 +179,7 @@ def approve(epoch_id: str, user: User = Depends(require_role("approver", "admin"
 def issue_capability(
     epoch_id: str,
     payload: CapabilityIssueRequest,
-    user: User = Depends(require_role("approver", "admin")),
+    user: User = Depends(require_role("operator", "approver", "admin")),
     db: Session = Depends(get_db),
 ):
     row = _epoch_or_404(db, epoch_id)

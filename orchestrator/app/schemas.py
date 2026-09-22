@@ -80,6 +80,13 @@ class AgentExecuteRequest(StrictModel):
     capability_token: str = Field(min_length=32, max_length=4096)
 
 
+class PolicyDryRunRequest(StrictModel):
+    actor_type: str = Field(default="ai_agent", pattern=r"^[a-z][a-z0-9_-]{1,31}$")
+    action: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,39}$")
+    project: str = Field(min_length=2, max_length=120)
+    environment: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{1,31}$")
+
+
 class DriftRequest(StrictModel):
     field: str
     value: str = Field(min_length=1, max_length=256)

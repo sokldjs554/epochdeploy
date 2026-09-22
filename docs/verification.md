@@ -15,7 +15,7 @@ Each successful full round performed:
 - `gofmt -l executor` (must return no files)
 - `go vet ./...`
 - `go test -race -count=1 ./...`
-- `python -m pytest` -> **40 passed**
+- `python -m pytest` -> **44 passed**
 - build a Python wheel from `pyproject.toml`, install it into an isolated target, import `app.main`, and verify packaged static assets
 - build a fresh Go executor binary
 - assert the dedicated verification ports are unused before starting services, preventing a stale process from satisfying health checks
@@ -86,9 +86,22 @@ Stage-2 remote verification exercised short-lived agent capabilities across both
 
 The first complete capability run passed **40 Python tests**, stdlib Go tests, Gin lock/vet/race tests, Docker/PostgreSQL smoke and Chromium E2E. Verification also exposed a demo HMAC key shorter than the RFC 7518 SHA-256 recommendation; the default/example/Compose capability key was lengthened to at least 32 bytes before the final stage-2 run.
 
+## Policy dry-run / executable gate verification
+
+Stage-3 verification uses one deterministic policy engine for both simulation and real capability issuance.
+
+- `staging + deploy + ai_agent` → **ALLOW**: verified pipeline + scoped capability can execute without a human approval event.
+- `prod + deploy + ai_agent` → **ASK**: capability issuance is blocked until explicit human approval.
+- destructive actions such as `prod + delete` → **DENY**: no capability is issued even if an epoch was previously human-approved.
+- every real issuance attempt appends `POLICY_EVALUATED` to the Change Passport with decision, rule id and required controls.
+- the dry-run API has no deployment-state side effects and returns the same rule metadata used by issuance.
+- remote Chromium E2E exercises all three policy decisions before the normal production deployment flow.
+
+Remote Verification run **#27** (run id `35751777137`) passed **44 Python tests**, package build, stdlib Go and Gin vet/race checks, Docker/PostgreSQL smoke, and the corrected Chromium E2E. The first browser attempt exposed an event-binding bug caused by JavaScript replacement-string `$` semantics; the stored source was corrected and byte-checked before the successful rerun. Screenshot artifact `epochdeploy-browser-e2e` (artifact id `10705148705`, SHA-256 `227551587b9eabe35d7eed3cd7064c2a8574bced6e0b05bf664e694c237f882e`) was visually inspected and shows ALLOW / ASK / DENY with rule ids, reasons, and required controls.
+
 ## Python/API coverage highlights
 
-The 40 passing tests include:
+The 44 passing tests include:
 
 - JWT login and unauthenticated rejection
 - RBAC: operator cannot approve

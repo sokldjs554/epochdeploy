@@ -13,7 +13,8 @@ This is not a DevOps chatbot, log summarizer, or generic Internal Developer Plat
 - verify the Go execution boundary rejects the stale approval with a field-level diff;
 - persist an auditable execution receipt;
 - connect **why / who / approval / capability / evidence / execution** in an append-only Change Passport for human and AI-agent actions;
-- issue short-lived **scoped capabilities** so an AI agent can execute only the approved epoch, project, environment, action, actor and fingerprint.
+- issue short-lived **scoped capabilities** so an AI agent can execute only the approved epoch, project, environment, action, actor and fingerprint;
+- run the same deterministic **ALLOW / ASK / DENY policy engine** in dry-run simulation and real capability issuance.
 
 ## Architecture
 
@@ -80,7 +81,7 @@ This switches the orchestrator to PostgreSQL and talks to the separate **Go/Gin*
 - idempotent execution receipts;
 - Go core/server tests, including HMAC tamper/stale-signature checks and cross-runtime fingerprint vectors;
 - live HTTP smoke script (`scripts/smoke.sh`);
-- Chromium browser E2E across Release Control, **Change Passport**, Evidence, Execution Receipts, and Integrations (`scripts/browser-e2e.py`);
+- Chromium browser E2E across Release Control, **Policy Simulator**, Change Passport, Evidence, Execution Receipts, and Integrations (`scripts/browser-e2e.py`);
 - GitLab Docker Compose integration job.
 
 ## Verification boundary
