@@ -18,7 +18,7 @@ import (
 )
 
 const testSecret = "gin-test-secret"
-const testCapabilitySecret = "gin-capability-secret"
+const testCapabilitySecret = "gin-capability-secret-at-least-32-bytes"
 
 func identity() core.Identity {
 	return core.Identity{
