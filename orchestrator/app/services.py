@@ -16,6 +16,7 @@ from .executor_client import ExecutorBoundaryError, executor_client
 from .fingerprint import fingerprint
 from .governance import record_event
 from .models import Approval, ArtifactEvidence, CapabilityGrant, ChangeRequest, DeploymentEpoch, ExecutionReceipt, LiveTarget, OutboxEvent
+from .policy import evaluate_policy
 
 
 def epoch_identity(epoch: DeploymentEpoch) -> dict[str, str]:
@@ -85,12 +86,43 @@ def issue_execution_capability(
     locked = db.execute(
         select(DeploymentEpoch).where(DeploymentEpoch.id == epoch.id).with_for_update()
     ).scalar_one()
-    approval = db.query(Approval).filter(Approval.epoch_id == locked.id).one_or_none()
-    if locked.state != "APPROVED" or approval is None or approval.approved_fingerprint != locked.fingerprint:
-        raise HTTPException(status_code=409, detail="valid human approval is required before capability issuance")
     change = db.query(ChangeRequest).filter(ChangeRequest.epoch_id == locked.id).one_or_none()
     if change is None or change.actor_type != "ai_agent":
         raise HTTPException(status_code=409, detail="scoped capability is only issued for AI-agent-originated changes")
+    if locked.pipeline_status != "success":
+        raise HTTPException(status_code=409, detail="verified pipeline is required before capability issuance")
+
+    decision = evaluate_policy(
+        actor_type=change.actor_type,
+        action=change.action,
+        environment=locked.environment,
+    )
+    record_event(
+        db,
+        epoch_id=locked.id,
+        event_type="POLICY_EVALUATED",
+        actor_type="system",
+        actor_id="policy-engine",
+        summary=f"Policy decision {decision.decision}: {decision.reason}",
+        details={
+            "decision": decision.decision,
+            "rule_id": decision.rule_id,
+            "required_controls": list(decision.required_controls),
+            "action": change.action,
+            "environment": locked.environment,
+        },
+    )
+
+    if decision.decision == "DENY":
+        db.commit()
+        raise HTTPException(status_code=403, detail=decision.reason)
+
+    approval = db.query(Approval).filter(Approval.epoch_id == locked.id).one_or_none()
+    if decision.decision == "ASK":
+        if locked.state != "APPROVED" or approval is None or approval.approved_fingerprint != locked.fingerprint:
+            db.commit()
+            raise HTTPException(status_code=409, detail="policy requires explicit human approval before capability issuance")
+
     actor_type = change.actor_type
     actor_id = change.actor_id
     action = change.action
@@ -121,11 +153,13 @@ def issue_execution_capability(
         db,
         epoch_id=locked.id,
         event_type="CAPABILITY_ISSUED",
-        actor_type="human",
-        actor_id=issued_by,
+        actor_type="human" if decision.decision == "ASK" else "system",
+        actor_id=issued_by if decision.decision == "ASK" else "policy-engine",
         summary=f"Scoped {action} capability issued to {actor_type}:{actor_id}",
         details={
             "capability_id": jti,
+            "policy_decision": decision.decision,
+            "policy_rule": decision.rule_id,
             "actor_type": actor_type,
             "actor_id": actor_id,
             "project": locked.project,
