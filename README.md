@@ -12,7 +12,8 @@ This is not a DevOps chatbot, log summarizer, or generic Internal Developer Plat
 - mutate one of them after approval;
 - verify the Go execution boundary rejects the stale approval with a field-level diff;
 - persist an auditable execution receipt;
-- connect **why / who / approval / evidence / execution** in an append-only Change Passport for human and AI-agent actions.
+- connect **why / who / approval / capability / evidence / execution** in an append-only Change Passport for human and AI-agent actions;
+- issue short-lived **scoped capabilities** so an AI agent can execute only the approved epoch, project, environment, action, actor and fingerprint.
 
 ## Architecture
 
@@ -31,7 +32,7 @@ JWT Operator/Approver ┘          │                    │
 ### Role split
 
 - **FastAPI** — orchestration, GitLab webhook ingestion, JWT/RBAC, evidence upload, relational workflow state, receipts.
-- **Go/Gin** — production-shaped authenticated execution boundary, independent live-target observation, and final TOCTOU check. A stdlib adapter remains for zero-dependency local verification.
+- **Go/Gin** — production-shaped authenticated execution boundary, independent live-target observation, capability verification, and final TOCTOU check. A stdlib adapter remains for zero-dependency local verification.
 - **PostgreSQL** — epochs, agent change requests, append-only passport events, approvals, live target observations, evidence, receipts, outbox.
 - **GitLab CI** — test stages plus a Docker Compose contract job.
 - **gRPC contract** — `proto/executor.proto`; HTTP/JSON is the first runnable transport so local development does not depend on `protoc`.
