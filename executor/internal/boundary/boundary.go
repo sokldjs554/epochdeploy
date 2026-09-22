@@ -133,6 +133,70 @@ func VerifyCapability(secret, token string, expected CapabilityExpectation, now 
 	return claims, nil
 }
 
+
+type AgentExecutionContext struct {
+	EpochID             string
+	ActorType           string
+	ActorID             string
+	Action              string
+	ApprovedFingerprint string
+	CapabilityToken     string
+}
+
+func ValidateAgentExecutionCapability(secret string, expected core.Identity, exec AgentExecutionContext, now time.Time) error {
+	if exec.ActorType != "ai_agent" {
+		return nil
+	}
+	if exec.Action != "deploy" || exec.CapabilityToken == "" {
+		return errors.New("AI agent execution requires a scoped deploy capability")
+	}
+	expectedFP := core.Fingerprint(expected)
+	if exec.ApprovedFingerprint != expectedFP {
+		return errors.New("capability approved fingerprint does not match expected release")
+	}
+	_, err := VerifyCapability(
+		secret,
+		exec.CapabilityToken,
+		CapabilityExpectation{
+			EpochID: exec.EpochID,
+			ActorType: "ai_agent",
+			ActorID: exec.ActorID,
+			Project: expected.Project,
+			Environment: expected.Environment,
+			Action: "deploy",
+			Fingerprint: expectedFP,
+		},
+		now,
+	)
+	return err
+}
+
+func ValidRPCSignature(secret, timestamp, method string, payload []byte, signature string, now time.Time) bool {
+	unixSeconds, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return false
+	}
+	requestTime := time.Unix(unixSeconds, 0)
+	if now.Sub(requestTime) > MaxClockSkew || requestTime.Sub(now) > MaxClockSkew {
+		return false
+	}
+	const prefix = "sha256="
+	if !strings.HasPrefix(signature, prefix) {
+		return false
+	}
+	provided, err := hex.DecodeString(strings.TrimPrefix(signature, prefix))
+	if err != nil {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(timestamp))
+	_, _ = mac.Write([]byte("."))
+	_, _ = mac.Write([]byte(method))
+	_, _ = mac.Write([]byte("."))
+	_, _ = mac.Write(payload)
+	return hmac.Equal(provided, mac.Sum(nil))
+}
+
 func ValidSignature(secret, timestamp string, body []byte, signature string, now time.Time) bool {
 	unixSeconds, err := strconv.ParseInt(timestamp, 10, 64)
 	if err != nil {
