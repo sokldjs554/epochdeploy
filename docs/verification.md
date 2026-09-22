@@ -92,6 +92,17 @@ The 31 passing tests include:
 - executor observation failures mapped to a 502 boundary error
 - Python/Go shared fingerprint test vector
 
+## Verified Gin production-shaped runtime
+
+Pull-request workflow run **#14** (run id `35686009639`) verified the Gin executor on the exact dependency lock committed to `executor-gin/go.mod` and `executor-gin/go.sum`.
+
+- the **unit-and-package** job passed all **31 Python tests**, Python package build, stdlib Go `vet/race`, Gin module-lock stability (`go mod tidy` + zero diff), Gin `go vet`, Gin `go test -race -count=1 ./...`, and JavaScript syntax.
+- the **compose-postgres-smoke** job built and started the Gin executor image, started PostgreSQL 16 and FastAPI, verified the live PostgreSQL schema, passed three signed two-service smoke rounds, and passed the complete Chromium browser E2E.
+- the browser E2E required the Integrations view to report `implementation=gin`; the downloaded artifact confirmed `Go Executor / implementation: gin`, `Database / backend: postgresql`, and gRPC remaining explicitly `CONTRACT-ONLY`.
+- screenshot artifact `epochdeploy-browser-e2e`: artifact id `10676288669`, SHA-256 `e22a4ff19935a8e8ee476479aaa9638a9157da62674eeaa2bbd2a82b757f53ba`.
+
+This means Gin is no longer a keyword-only or source-only claim: it is the executor implementation used by the verified Docker Compose path.
+
 ## Go boundary coverage highlights
 
 Go tests cover:
@@ -143,6 +154,5 @@ These items are **not** claimed complete:
 - **PostgreSQL query-plan and database-lock contention analysis:** the PostgreSQL-backed Compose path is now remotely verified, but `EXPLAIN (ANALYZE, BUFFERS)` tuning and multi-writer lock-contention testing have not been run.
 - **Actual GitLab Runner execution:** `.gitlab-ci.yml` is present and structurally reviewed, but no runner is connected here. The successful GitHub-hosted workflow is supplementary validation, not a claim that GitLab CI itself ran.
 - **Generated gRPC transport:** `proto/executor.proto` documents the target service contract, but `protoc` and required networked Go dependencies are unavailable here. The verified transport is signed HTTP/JSON.
-- **Gin transport:** the verified Go service deliberately uses the standard library HTTP server; Gin is not falsely claimed as executed.
 - **Kubernetes deployment:** intentionally deferred until the container path can be executed and verified.
 - **Remote GitHub repository:** `sokldjs554/epochdeploy` exists. The previous release was compared file-by-file against local Git blob SHAs before merge; this verification discipline remains the handoff requirement for the current UI/E2E update.

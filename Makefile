@@ -1,4 +1,4 @@
-.PHONY: test test-python test-go verify run-api run-go demo-check benchmark
+.PHONY: test test-python test-go test-go-gin verify run-api run-go run-go-gin demo-check benchmark
 
 EXECUTOR_SECRET ?= local-executor-secret
 
@@ -10,6 +10,9 @@ test-python:
 test-go:
 	cd executor && go test -race ./...
 
+test-go-gin:
+	cd executor-gin && go test -race ./...
+
 verify:
 	bash scripts/verify-local.sh
 
@@ -18,6 +21,9 @@ run-api:
 
 run-go:
 	cd executor && EPOCHDEPLOY_EXECUTOR_HMAC_SECRET=$(EXECUTOR_SECRET) go run ./cmd/server
+
+run-go-gin:
+	cd executor-gin && EPOCHDEPLOY_EXECUTOR_HMAC_SECRET=$(EXECUTOR_SECRET) go run ./cmd/server
 
 demo-check:
 	BASE=http://127.0.0.1:8000 bash scripts/smoke.sh

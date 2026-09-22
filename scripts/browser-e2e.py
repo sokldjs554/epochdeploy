@@ -114,6 +114,9 @@ def main() -> None:
         expect_text(page, "#integration-cards", "Database")
         expect_text(page, "#integration-cards", "gRPC Contract")
         expect_text(page, "#integration-cards", "contract-only")
+        expected_executor = os.getenv("EPOCHDEPLOY_EXPECT_EXECUTOR_IMPLEMENTATION")
+        if expected_executor:
+            expect_text(page, "#integration-cards", expected_executor)
         page.screenshot(path=OUT / "05-integrations.png", full_page=True)
 
         # Fresh epoch: stale approval is blocked and the diff is rendered safely.

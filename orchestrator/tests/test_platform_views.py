@@ -57,6 +57,7 @@ def test_integration_status_is_explicit_without_exposing_secrets(client, operato
     body = response.json()
     assert body["gitlab"]["status"] == "configured"
     assert body["gitlab"]["binding"] == "pipeline id + immutable commit SHA"
+    assert body["executor"]["implementation"] == "local"
     assert body["executor"]["transport"] == "HMAC-SHA256 signed HTTP/JSON"
     assert body["executor"]["target_observation"] == "executor-owned"
     assert body["database"]["backend"] == "sqlite"
