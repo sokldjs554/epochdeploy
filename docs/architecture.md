@@ -22,7 +22,7 @@ EpochDeploy is a small control plane for one narrow systems problem: **the thing
 - **Python/FastAPI:** orchestration, auth, GitLab webhooks, evidence ingestion, relational workflow state, UI API.
 - **Go/Gin:** the production-shaped Compose path runs a Gin adapter around the same deterministic execution core. The stdlib adapter is retained for zero-dependency local verification. Both keep only ephemeral live-target observations; workflow state remains in PostgreSQL.
 
-The transport boundary is deliberately explicit. `proto/executor.proto` is the intended gRPC contract. The first runnable transport is HTTP/JSON so the repository remains locally testable without code generation; gRPC transport can be generated from the same service contract in a network-enabled build environment.
+The transport boundary is deliberately explicit. `proto/executor.proto` is generated into Go and Python bindings and the production-shaped Compose path uses gRPC for Health, Observe, and Execute. Generated bindings are regenerated in CI and must produce zero diff. The Gin HTTP adapter remains available for health/compatibility and shares the same deterministic execution core and live-target store.
 
 ## PostgreSQL model
 
@@ -30,4 +30,4 @@ The production `docker-compose.yml` uses PostgreSQL. SQLite is supported only as
 
 ## Service-to-service trust
 
-The verified production-shaped HTTP transport is Gin-based and is not anonymous. FastAPI signs the exact request body with HMAC-SHA256 plus a Unix timestamp; the Go boundary rejects missing/invalid signatures and requests outside a 30-second clock-skew window. In Docker Compose the executor is only exposed on the internal service network.
+The verified production-shaped transport is gRPC and is not anonymous. FastAPI deterministically serializes each protobuf Observe/Execute request and signs `timestamp + RPC method + protobuf bytes` with HMAC-SHA256 metadata. A Go unary interceptor independently serializes the request, validates that signature, and rejects missing/invalid or stale metadata outside a 30-second clock-skew window. Capability scope is then verified before the shared live-target/TOCTOU check. Gin HTTP remains an internal compatibility adapter; neither executor port is published to the host in Compose.
