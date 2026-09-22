@@ -204,6 +204,13 @@ def execute_agent_epoch(
         expires = expires.replace(tzinfo=timezone.utc)
     if expires <= now:
         raise HTTPException(status_code=403, detail="capability grant expired")
+    decision = evaluate_policy(
+        actor_type=change.actor_type,
+        action=change.action,
+        environment=epoch.environment,
+    )
+    if decision.decision == "DENY":
+        raise HTTPException(status_code=403, detail=decision.reason)
     context = {
         "epoch_id": epoch.id,
         "actor_type": change.actor_type,
@@ -211,6 +218,8 @@ def execute_agent_epoch(
         "action": change.action,
         "approved_fingerprint": epoch.fingerprint,
         "capability_token": capability_token,
+        "policy_decision": decision.decision,
+        "policy_rule": decision.rule_id,
     }
     return execute_epoch(db, epoch, idempotency_key, execution_context=context)
 
@@ -254,11 +263,17 @@ def execute_epoch(
     ).one_or_none()
     if existing:
         return existing, list(existing.differences_json or [])
-    if locked.state != "APPROVED":
+    policy_allows_without_approval = bool(
+        execution_context
+        and execution_context.get("actor_type") == "ai_agent"
+        and execution_context.get("policy_decision") == "ALLOW"
+    )
+    if locked.state != "APPROVED" and not (policy_allows_without_approval and locked.state == "DRAFT"):
         raise HTTPException(status_code=409, detail=f"epoch is not executable from state {locked.state}")
     approval = db.query(Approval).filter(Approval.epoch_id == locked.id).one_or_none()
-    if approval is None or approval.approved_fingerprint != locked.fingerprint:
-        raise HTTPException(status_code=409, detail="epoch has no valid approval bound to its current fingerprint")
+    if not policy_allows_without_approval:
+        if approval is None or approval.approved_fingerprint != locked.fingerprint:
+            raise HTTPException(status_code=409, detail="epoch has no valid approval bound to its current fingerprint")
     live = db.query(LiveTarget).filter(
         LiveTarget.project == locked.project,
         LiveTarget.environment == locked.environment,
