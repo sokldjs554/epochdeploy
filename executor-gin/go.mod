@@ -7,6 +7,8 @@ toolchain go1.23.12
 require (
 	epochdeploy/executor v0.0.0
 	github.com/gin-gonic/gin v1.11.0
+	google.golang.org/grpc v1.75.1
+	google.golang.org/protobuf v1.36.9
 )
 
 require (
