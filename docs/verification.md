@@ -15,7 +15,7 @@ Each successful full round performed:
 - `gofmt -l executor` (must return no files)
 - `go vet ./...`
 - `go test -race -count=1 ./...`
-- `python -m pytest` -> **31 passed**
+- `python -m pytest` -> **35 passed**
 - build a Python wheel from `pyproject.toml`, install it into an isolated target, import `app.main`, and verify packaged static assets
 - build a fresh Go executor binary
 - assert the dedicated verification ports are unused before starting services, preventing a stale process from satisfying health checks
@@ -64,9 +64,18 @@ GitHub-hosted `Remote Verification` run **#5** (run id `35608531620`) independen
 
 The downloaded remote artifact was inspected after the run. Evidence, Integrations, and stale-approval screens rendered without clipping or layout breakage; the Integrations view reported the live database backend as `postgresql`, and the stale flow visibly showed `DENIED_STALE` / `BLOCKED` with the approved-vs-observed artifact digest difference.
 
+## Agent Governance / Change Passport verification
+
+Remote Verification run **#19** (run id `35721783280`) exercised the first governance expansion on the Gin + PostgreSQL Compose path.
+
+- Python regression suite: **35 passed**. New coverage verifies AI-agent provenance, WHY/WHO preservation, the complete `EPOCH_CREATED → CHANGE_REQUESTED → PIPELINE_VERIFIED → APPROVED → EVIDENCE_ATTACHED → EXECUTED` sequence, idempotent approval audit behavior, and visible pipeline SHA rejection.
+- the production-shaped Compose job rebuilt the Gin executor, verified PostgreSQL, passed the repeated two-service smoke flow, and passed the expanded Chromium E2E.
+- Chromium now visits **Change Passport** in both happy and blocked releases and verifies `ISSUE-184`, `release-agent-01`, approval, `EXECUTED`, `DENIED_STALE`, and the append-only timeline.
+- downloaded screenshots were visually inspected; WHY / WHO / WHAT / APPROVAL / EVIDENCE / EXECUTION cards and the timeline render without clipping in both terminal states.
+
 ## Python/API coverage highlights
 
-The 31 passing tests include:
+The 35 passing tests include:
 
 - JWT login and unauthenticated rejection
 - RBAC: operator cannot approve
