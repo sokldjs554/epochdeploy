@@ -16,8 +16,9 @@ from .config import settings
 from .db import Base, SessionLocal, engine, get_db
 from .fingerprint import fingerprint
 from .executor_client import executor_implementation
-from .models import Approval, ArtifactEvidence, DeploymentEpoch, ExecutionReceipt, LiveTarget, User, WebhookEvent
-from .schemas import DriftRequest, EpochCreate, ExecuteRequest, LoginRequest, ReceiptOut, TargetObservation, TokenResponse
+from .governance import build_passport, create_change_request, record_event
+from .models import Approval, ArtifactEvidence, ChangeRequest, DeploymentEpoch, ExecutionReceipt, LiveTarget, PassportEvent, User, WebhookEvent
+from .schemas import AgentChangeCreate, DriftRequest, EpochCreate, ExecuteRequest, LoginRequest, ReceiptOut, TargetObservation, TokenResponse
 from .security import current_user, hash_password, issue_token, require_role, verify_password
 from .services import approve_epoch, create_epoch, epoch_identity, execute_epoch, save_evidence, sync_executor_observation, upsert_target
 
@@ -92,6 +93,40 @@ def api_create_epoch(payload: EpochCreate, user: User = Depends(require_role("op
     return epoch_view(db, row)
 
 
+@app.post("/api/agent/changes", status_code=201)
+def create_agent_change(
+    payload: AgentChangeCreate,
+    user: User = Depends(require_role("operator", "admin")),
+    db: Session = Depends(get_db),
+):
+    epoch_payload = EpochCreate(**payload.model_dump(include={
+        "project", "environment", "commit_sha", "artifact_digest", "config_hash", "pipeline_id"
+    }))
+    epoch = create_epoch(db, epoch_payload, user.username)
+    change = create_change_request(
+        db,
+        epoch=epoch,
+        external_ref=payload.change_request_id,
+        reason=payload.reason,
+        actor_type="ai_agent",
+        actor_id=payload.actor_id,
+        requested_by=user.username,
+        action=payload.action,
+    )
+    return {
+        "epoch": epoch_view(db, epoch),
+        "change": {
+            "id": change.id,
+            "external_ref": change.external_ref,
+            "reason": change.reason,
+            "actor_type": change.actor_type,
+            "actor_id": change.actor_id,
+            "requested_by": change.requested_by,
+            "action": change.action,
+        },
+    }
+
+
 @app.get("/api/epochs")
 def list_epochs(user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.query(DeploymentEpoch).order_by(DeploymentEpoch.created_at.desc()).limit(100).all()
@@ -102,6 +137,12 @@ def list_epochs(user: User = Depends(current_user), db: Session = Depends(get_db
 def get_epoch(epoch_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
     row = _epoch_or_404(db, epoch_id)
     return epoch_view(db, row)
+
+
+@app.get("/api/epochs/{epoch_id}/passport")
+def change_passport(epoch_id: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    row = _epoch_or_404(db, epoch_id)
+    return build_passport(db, row)
 
 
 @app.post("/api/epochs/{epoch_id}/approve")
@@ -243,7 +284,28 @@ async def gitlab_webhook(
         pipeline_sha = str(attrs.get("sha", ""))
         rows = db.query(DeploymentEpoch).filter(DeploymentEpoch.pipeline_id == pipeline_id).all()
         for row in rows:
+            previous = row.pipeline_status
             row.pipeline_status = status if pipeline_sha == row.commit_sha else "sha_mismatch"
+            if row.pipeline_status == "success" and previous != "success":
+                record_event(
+                    db,
+                    epoch_id=row.id,
+                    event_type="PIPELINE_VERIFIED",
+                    actor_type="system",
+                    actor_id="gitlab",
+                    summary="GitLab pipeline evidence matched the immutable commit SHA",
+                    details={"pipeline_id": pipeline_id, "commit_sha": pipeline_sha, "status": status},
+                )
+            elif row.pipeline_status == "sha_mismatch" and previous != "sha_mismatch":
+                record_event(
+                    db,
+                    epoch_id=row.id,
+                    event_type="PIPELINE_REJECTED",
+                    actor_type="system",
+                    actor_id="gitlab",
+                    summary="GitLab pipeline SHA did not match the deployment epoch",
+                    details={"pipeline_id": pipeline_id, "observed_sha": pipeline_sha, "expected_sha": row.commit_sha},
+                )
     db.commit()
     return {"accepted": True, "duplicate": False}
 
@@ -263,6 +325,26 @@ def demo_bootstrap(user: User = Depends(require_role("admin")), db: Session = De
         pipeline_id="7421",
     )
     epoch = create_epoch(db, payload, user.username, pipeline_status="success")
+    create_change_request(
+        db,
+        epoch=epoch,
+        external_ref="ISSUE-184",
+        reason="Payment retry policy caused intermittent production timeouts",
+        actor_type="ai_agent",
+        actor_id="release-agent-01",
+        requested_by=user.username,
+        action="deploy",
+    )
+    record_event(
+        db,
+        epoch_id=epoch.id,
+        event_type="PIPELINE_VERIFIED",
+        actor_type="system",
+        actor_id="gitlab",
+        summary="Demo GitLab pipeline evidence verified",
+        details={"pipeline_id": epoch.pipeline_id, "commit_sha": epoch.commit_sha, "status": "success"},
+    )
+    db.commit()
     target = TargetObservation(**epoch_identity(epoch))
     upsert_target(db, target)
     return epoch_view(db, epoch)
