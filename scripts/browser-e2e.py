@@ -135,14 +135,15 @@ def main() -> None:
         expect_text(page, "#receipts-list", "approved deployment identity matches live target")
         page.screenshot(path=OUT / "06-receipts-happy.png", full_page=True)
 
-        # Integration view reports real runtime boundary and contract-only gRPC honestly.
+        # Integration view must show the production Compose gRPC runtime honestly.
         page.locator('.nav[data-view="integrations"]').click()
         expect_text(page, "h1", "Make every trust boundary visible")
         expect_text(page, "#integration-cards", "GitLab Pipeline Hook")
         expect_text(page, "#integration-cards", "Go Executor")
         expect_text(page, "#integration-cards", "Database")
-        expect_text(page, "#integration-cards", "gRPC Contract")
-        expect_text(page, "#integration-cards", "contract-only")
+        expect_text(page, "#integration-cards", "gRPC Runtime")
+        expect_text(page, "#integration-cards", "active")
+        expect_text(page, "#integration-cards", "grpc")
         expected_executor = os.getenv("EPOCHDEPLOY_EXPECT_EXECUTOR_IMPLEMENTATION")
         if expected_executor:
             expect_text(page, "#integration-cards", expected_executor)
