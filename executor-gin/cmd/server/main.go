@@ -65,27 +65,17 @@ func buildRouter(secret, capabilitySecret string, store *boundary.TargetStore) *
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 			return
 		}
-		if req.Context != nil && req.Context.ActorType == "ai_agent" {
-			if req.Context.Action != "deploy" || req.Context.CapabilityToken == "" {
-				c.JSON(http.StatusForbidden, gin.H{"error": "AI agent execution requires a scoped deploy capability"})
-				return
-			}
-			expectedFP := core.Fingerprint(req.Expected)
-			if req.Context.ApprovedFingerprint != expectedFP {
-				c.JSON(http.StatusForbidden, gin.H{"error": "capability approved fingerprint does not match expected release"})
-				return
-			}
-			_, err := boundary.VerifyCapability(
+		if req.Context != nil {
+			err := boundary.ValidateAgentExecutionCapability(
 				capabilitySecret,
-				req.Context.CapabilityToken,
-				boundary.CapabilityExpectation{
+				req.Expected,
+				boundary.AgentExecutionContext{
 					EpochID: req.Context.EpochID,
-					ActorType: "ai_agent",
+					ActorType: req.Context.ActorType,
 					ActorID: req.Context.ActorID,
-					Project: req.Expected.Project,
-					Environment: req.Expected.Environment,
-					Action: "deploy",
-					Fingerprint: expectedFP,
+					Action: req.Context.Action,
+					ApprovedFingerprint: req.Context.ApprovedFingerprint,
+					CapabilityToken: req.Context.CapabilityToken,
 				},
 				time.Now(),
 			)
