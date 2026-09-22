@@ -89,9 +89,11 @@ def issue_execution_capability(
     if locked.state != "APPROVED" or approval is None or approval.approved_fingerprint != locked.fingerprint:
         raise HTTPException(status_code=409, detail="valid human approval is required before capability issuance")
     change = db.query(ChangeRequest).filter(ChangeRequest.epoch_id == locked.id).one_or_none()
-    actor_type = change.actor_type if change else "human"
-    actor_id = change.actor_id if change else locked.created_by
-    action = change.action if change else "deploy"
+    if change is None or change.actor_type != "ai_agent":
+        raise HTTPException(status_code=409, detail="scoped capability is only issued for AI-agent-originated changes")
+    actor_type = change.actor_type
+    actor_id = change.actor_id
+    action = change.action
     scope = CapabilityScope(
         epoch_id=locked.id,
         actor_type=actor_type,
