@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .db import Base, SessionLocal, engine, get_db
 from .fingerprint import fingerprint
-from .executor_client import executor_implementation
+from .executor_client import executor_implementation, executor_transport
 from .governance import build_passport, create_change_request, record_event
 from .models import Approval, ArtifactEvidence, CapabilityGrant, ChangeRequest, DeploymentEpoch, ExecutionReceipt, LiveTarget, PassportEvent, User, WebhookEvent
 from .policy import evaluate_policy
@@ -288,7 +288,8 @@ def integration_status(user: User = Depends(current_user)):
             "status": "configured",
             "mode": settings.executor_mode,
             "implementation": executor_implementation(),
-            "transport": "HMAC-SHA256 signed HTTP/JSON",
+            "transport": executor_transport(),
+            "authentication": "HMAC-SHA256 signed request metadata" if settings.executor_mode == "grpc" else "HMAC-SHA256 signed request body",
             "target_observation": "executor-owned",
         },
         "database": {
@@ -297,9 +298,9 @@ def integration_status(user: User = Depends(current_user)):
             "role": "epochs + approvals + evidence + receipts + outbox",
         },
         "grpc": {
-            "status": "contract-only",
+            "status": "active" if settings.executor_mode == "grpc" else "implemented",
             "contract": "proto/executor.proto",
-            "runtime_transport": "HTTP/JSON",
+            "runtime_transport": "gRPC" if settings.executor_mode == "grpc" else executor_transport(),
         },
     }
 
