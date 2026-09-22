@@ -58,10 +58,12 @@ def test_integration_status_is_explicit_without_exposing_secrets(client, operato
     assert body["gitlab"]["status"] == "configured"
     assert body["gitlab"]["binding"] == "pipeline id + immutable commit SHA"
     assert body["executor"]["implementation"] == "local"
-    assert body["executor"]["transport"] == "HMAC-SHA256 signed HTTP/JSON"
+    assert body["executor"]["transport"] == "local"
+    assert body["executor"]["authentication"] == "HMAC-SHA256 signed request body"
     assert body["executor"]["target_observation"] == "executor-owned"
     assert body["database"]["backend"] == "sqlite"
-    assert body["grpc"]["status"] == "contract-only"
+    assert body["grpc"]["status"] == "implemented"
+    assert body["grpc"]["runtime_transport"] == "local"
     serialized = response.text.lower()
     assert "test-gitlab-token" not in serialized
     assert "test-secret" not in serialized
