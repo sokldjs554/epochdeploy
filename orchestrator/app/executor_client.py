@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 
+from .capability import CapabilityError, CapabilityScope, verify_capability
 from .config import settings
 from .fingerprint import diff_identity, fingerprint
 
@@ -30,8 +31,22 @@ class LocalExecutorClient:
     def observe(self, identity: dict[str, str]) -> None:
         return None
 
-    def execute(self, expected: dict[str, str], observed: dict[str, str]) -> ExecutorResult:
+    def execute(self, expected: dict[str, str], observed: dict[str, str], context: dict | None = None) -> ExecutorResult:
         started = time.perf_counter()
+        if context and context.get("actor_type") == "ai_agent":
+            scope = CapabilityScope(
+                epoch_id=context["epoch_id"],
+                actor_type=context["actor_type"],
+                actor_id=context["actor_id"],
+                project=expected["project"],
+                environment=expected["environment"],
+                action=context["action"],
+                fingerprint=context["approved_fingerprint"],
+            )
+            try:
+                verify_capability(context["capability_token"], scope)
+            except CapabilityError as exc:
+                raise ExecutorBoundaryError(str(exc)) from exc
         expected_fp = fingerprint(expected)
         observed_fp = fingerprint(observed)
         diffs = diff_identity(expected, observed)
@@ -69,10 +84,13 @@ class HTTPExecutorClient:
     def observe(self, identity: dict[str, str]) -> None:
         self._signed_post("/v1/targets/observe", {"identity": identity})
 
-    def execute(self, expected: dict[str, str], observed: dict[str, str]) -> ExecutorResult:
+    def execute(self, expected: dict[str, str], observed: dict[str, str], context: dict | None = None) -> ExecutorResult:
         del observed  # HTTP execution boundary resolves its own last observed target.
         started = time.perf_counter()
-        data = self._signed_post("/v1/execute", {"expected": expected})
+        payload: dict[str, Any] = {"expected": expected}
+        if context:
+            payload["context"] = context
+        data = self._signed_post("/v1/execute", payload)
         return ExecutorResult(
             outcome=data["outcome"],
             observed_fingerprint=data["observed_fingerprint"],
