@@ -3,17 +3,19 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .capability import CapabilityError, CapabilityScope, issue_capability, verify_capability
 from .config import settings
 from .executor_client import ExecutorBoundaryError, executor_client
 from .fingerprint import fingerprint
 from .governance import record_event
-from .models import Approval, ArtifactEvidence, DeploymentEpoch, ExecutionReceipt, LiveTarget, OutboxEvent
+from .models import Approval, ArtifactEvidence, CapabilityGrant, ChangeRequest, DeploymentEpoch, ExecutionReceipt, LiveTarget, OutboxEvent
 
 
 def epoch_identity(epoch: DeploymentEpoch) -> dict[str, str]:
@@ -74,6 +76,109 @@ def approve_epoch(db: Session, epoch: DeploymentEpoch, approver: str) -> Approva
     return approval
 
 
+def issue_execution_capability(
+    db: Session,
+    epoch: DeploymentEpoch,
+    issued_by: str,
+    ttl_seconds: int = 300,
+) -> tuple[CapabilityGrant, str]:
+    locked = db.execute(
+        select(DeploymentEpoch).where(DeploymentEpoch.id == epoch.id).with_for_update()
+    ).scalar_one()
+    approval = db.query(Approval).filter(Approval.epoch_id == locked.id).one_or_none()
+    if locked.state != "APPROVED" or approval is None or approval.approved_fingerprint != locked.fingerprint:
+        raise HTTPException(status_code=409, detail="valid human approval is required before capability issuance")
+    change = db.query(ChangeRequest).filter(ChangeRequest.epoch_id == locked.id).one_or_none()
+    actor_type = change.actor_type if change else "human"
+    actor_id = change.actor_id if change else locked.created_by
+    action = change.action if change else "deploy"
+    scope = CapabilityScope(
+        epoch_id=locked.id,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        project=locked.project,
+        environment=locked.environment,
+        action=action,
+        fingerprint=locked.fingerprint,
+    )
+    token, jti, expires_at = issue_capability(scope, ttl_seconds)
+    grant = CapabilityGrant(
+        id=jti,
+        epoch_id=locked.id,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        project=locked.project,
+        environment=locked.environment,
+        action=action,
+        fingerprint=locked.fingerprint,
+        issued_by=issued_by,
+        expires_at=expires_at,
+    )
+    db.add(grant)
+    record_event(
+        db,
+        epoch_id=locked.id,
+        event_type="CAPABILITY_ISSUED",
+        actor_type="human",
+        actor_id=issued_by,
+        summary=f"Scoped {action} capability issued to {actor_type}:{actor_id}",
+        details={
+            "capability_id": jti,
+            "actor_type": actor_type,
+            "actor_id": actor_id,
+            "project": locked.project,
+            "environment": locked.environment,
+            "action": action,
+            "fingerprint": locked.fingerprint,
+            "expires_at": expires_at.isoformat(),
+        },
+    )
+    db.commit()
+    return grant, token
+
+
+def execute_agent_epoch(
+    db: Session,
+    epoch: DeploymentEpoch,
+    idempotency_key: str,
+    capability_token: str,
+) -> tuple[ExecutionReceipt, list[dict[str, str]]]:
+    change = db.query(ChangeRequest).filter(ChangeRequest.epoch_id == epoch.id).one_or_none()
+    if change is None or change.actor_type != "ai_agent":
+        raise HTTPException(status_code=409, detail="epoch is not an AI-agent-originated change")
+    scope = CapabilityScope(
+        epoch_id=epoch.id,
+        actor_type=change.actor_type,
+        actor_id=change.actor_id,
+        project=epoch.project,
+        environment=epoch.environment,
+        action=change.action,
+        fingerprint=epoch.fingerprint,
+    )
+    try:
+        claims = verify_capability(capability_token, scope)
+    except CapabilityError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    grant = db.get(CapabilityGrant, claims["jti"])
+    now = datetime.now(timezone.utc)
+    if grant is None or grant.epoch_id != epoch.id or grant.revoked_at is not None:
+        raise HTTPException(status_code=403, detail="capability grant is not active")
+    expires = grant.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires <= now:
+        raise HTTPException(status_code=403, detail="capability grant expired")
+    context = {
+        "epoch_id": epoch.id,
+        "actor_type": change.actor_type,
+        "actor_id": change.actor_id,
+        "action": change.action,
+        "approved_fingerprint": epoch.fingerprint,
+        "capability_token": capability_token,
+    }
+    return execute_epoch(db, epoch, idempotency_key, execution_context=context)
+
+
 def upsert_target(db: Session, payload) -> LiveTarget:
     row = db.query(LiveTarget).filter(
         LiveTarget.project == payload.project,
@@ -97,7 +202,12 @@ def sync_executor_observation(identity: dict[str, str]) -> None:
         raise HTTPException(status_code=502, detail="executor observation unavailable") from exc
 
 
-def execute_epoch(db: Session, epoch: DeploymentEpoch, idempotency_key: str) -> tuple[ExecutionReceipt, list[dict[str, str]]]:
+def execute_epoch(
+    db: Session,
+    epoch: DeploymentEpoch,
+    idempotency_key: str,
+    execution_context: dict | None = None,
+) -> tuple[ExecutionReceipt, list[dict[str, str]]]:
     # PostgreSQL uses this row lock to serialize execution attempts per epoch.
     locked = db.execute(
         select(DeploymentEpoch).where(DeploymentEpoch.id == epoch.id).with_for_update()
@@ -128,7 +238,7 @@ def execute_epoch(db: Session, epoch: DeploymentEpoch, idempotency_key: str) -> 
         "config_hash": live.config_hash,
     }
     try:
-        result = executor_client().execute(expected, observed)
+        result = executor_client().execute(expected, observed, execution_context)
     except ExecutorBoundaryError as exc:
         raise HTTPException(status_code=502, detail="executor boundary unavailable") from exc
     receipt = ExecutionReceipt(
