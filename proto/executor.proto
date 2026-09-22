@@ -1,11 +1,22 @@
 syntax = "proto3";
+
 package epochdeploy.executor.v1;
 
-option go_package = "epochdeploy/executor/gen/executorv1";
+option go_package = "epochdeploy/executor/ginserver/gen/executorv1";
 
 service Executor {
-  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
   rpc Observe(ObserveRequest) returns (ObserveResponse);
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  string service = 2;
+  string implementation = 3;
+  string transport = 4;
 }
 
 message DeploymentIdentity {
@@ -16,18 +27,39 @@ message DeploymentIdentity {
   string config_hash = 5;
 }
 
-message ExecuteRequest {
+message ExecutionContext {
   string epoch_id = 1;
-  string approved_fingerprint = 2;
-  DeploymentIdentity expected = 3;
-  string capability_token = 4;
+  string actor_type = 2;
+  string actor_id = 3;
+  string action = 4;
+  string approved_fingerprint = 5;
+  string capability_token = 6;
+  string policy_decision = 7;
+  string policy_rule = 8;
+}
+
+message Difference {
+  string field = 1;
+  string expected = 2;
+  string observed = 3;
+}
+
+message ExecuteRequest {
+  DeploymentIdentity expected = 1;
+  ExecutionContext context = 2;
 }
 
 message ExecuteResponse {
   string outcome = 1;
   string observed_fingerprint = 2;
   string reason = 3;
+  repeated Difference differences = 4;
 }
 
-message ObserveRequest { DeploymentIdentity identity = 1; }
-message ObserveResponse { string observed_fingerprint = 1; }
+message ObserveRequest {
+  DeploymentIdentity identity = 1;
+}
+
+message ObserveResponse {
+  string observed_fingerprint = 1;
+}

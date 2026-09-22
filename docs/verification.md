@@ -6,7 +6,7 @@ This document records only checks actually executed against the current reposito
 
 ## Full local verification
 
-After the latest application changes, `scripts/verify-local.sh` completed successfully **three consecutive times**.
+Before the stage-4 gRPC runtime switch, `scripts/verify-local.sh` completed successfully **three consecutive times** on the local HTTP-reference path.
 
 Each successful full round performed:
 
@@ -15,7 +15,7 @@ Each successful full round performed:
 - `gofmt -l executor` (must return no files)
 - `go vet ./...`
 - `go test -race -count=1 ./...`
-- `python -m pytest` -> **44 passed**
+- `python -m pytest` -> **44 passed** at that local pre-gRPC checkpoint
 - build a Python wheel from `pyproject.toml`, install it into an isolated target, import `app.main`, and verify packaged static assets
 - build a fresh Go executor binary
 - assert the dedicated verification ports are unused before starting services, preventing a stale process from satisfying health checks
@@ -48,7 +48,7 @@ After the service-style navigation was made functional, `scripts/browser-e2e.py`
 1. create epoch -> approve -> execute -> `EXECUTED` / `MATCH`;
 2. open **Evidence**, upload a real multipart provenance file, and verify its SHA-256 ledger entry;
 3. open **Execution Receipts** and verify the stored happy-path receipt;
-4. open **Integrations** and verify GitLab, executor, database, and the explicitly `contract-only` gRPC status;
+4. open **Integrations** and verify GitLab, executor, database, and the then-current gRPC integration status;
 5. create a fresh epoch -> approve -> mutate artifact digest -> execute -> `DENIED_STALE` / `BLOCKED` with an `artifact_digest` diff;
 6. reopen **Execution Receipts** and verify the blocked receipt.
 
@@ -99,6 +99,24 @@ Stage-3 verification uses one deterministic policy engine for both simulation an
 
 Remote Verification run **#27** (run id `35751777137`) passed **44 Python tests**, package build, stdlib Go and Gin vet/race checks, Docker/PostgreSQL smoke, and the corrected Chromium E2E. The first browser attempt exposed an event-binding bug caused by JavaScript replacement-string `$` semantics; the stored source was corrected and byte-checked before the successful rerun. Screenshot artifact `epochdeploy-browser-e2e` (artifact id `10705148705`, SHA-256 `227551587b9eabe35d7eed3cd7064c2a8574bced6e0b05bf664e694c237f882e`) was visually inspected and shows ALLOW / ASK / DENY with rule ids, reasons, and required controls.
 
+## Active gRPC transport verification
+
+Stage-4 Remote Verification run **#56** (run id `35758258511`) exercised the generated gRPC transport on the production-shaped Gin + PostgreSQL Compose path.
+
+- **grpc-codegen** regenerated Go and Python bindings from `proto/executor.proto`, ran `go mod tidy`, and passed a read-only zero-diff check against the checked-in generated files and module lock.
+- **unit-and-package** passed **47 Python tests**, Python package build, stdlib Go vet/race tests, and Gin + gRPC server vet/race tests. The gRPC tests cover unsigned metadata rejection, exact Observe/Execute, stale artifact blocking, valid scoped capability execution, and cross-epoch capability rejection. Python tests also lock deterministic protobuf HMAC metadata and execution-context mapping.
+- **compose-postgres-smoke** built the gRPC-enabled executor image, started PostgreSQL 16, FastAPI, Gin HTTP on 9080, and the gRPC executor on **9090**. PostgreSQL schema checks passed, then the repeated two-service smoke completed **3/3** successfully.
+- Chromium E2E completed successfully over that Compose stack. The downloaded Integrations screenshot visibly reports:
+  - Go Executor mode = `grpc`
+  - implementation = `gin`
+  - transport = `grpc`
+  - Database backend = `postgresql`
+  - gRPC Runtime = **ACTIVE**
+- Compose logs show `epochdeploy gRPC executor listening on :9090`, and the browser E2E ended with `browser e2e: PASS`.
+- screenshot artifact `epochdeploy-browser-e2e`: artifact id `10709005497`, SHA-256 `dd1f3ab301e0a4102cddac2108444bbbdb4d0b757b4596a36389e5c18abe320c`.
+
+The verified service-to-service path is therefore no longer contract-only: FastAPI Observe/Execute calls use signed gRPC, while Gin HTTP remains an internal health/compatibility adapter sharing the same target store, capability verifier, and TOCTOU core.
+
 ## Python/API coverage highlights
 
 The 44 passing tests include:
@@ -133,7 +151,7 @@ Pull-request workflow run **#14** (run id `35686009639`) verified the Gin execut
 
 - the **unit-and-package** job passed all **31 Python tests**, Python package build, stdlib Go `vet/race`, Gin module-lock stability (`go mod tidy` + zero diff), Gin `go vet`, Gin `go test -race -count=1 ./...`, and JavaScript syntax.
 - the **compose-postgres-smoke** job built and started the Gin executor image, started PostgreSQL 16 and FastAPI, verified the live PostgreSQL schema, passed three signed two-service smoke rounds, and passed the complete Chromium browser E2E.
-- the browser E2E required the Integrations view to report `implementation=gin`; the downloaded artifact confirmed `Go Executor / implementation: gin`, `Database / backend: postgresql`, and gRPC remaining explicitly `CONTRACT-ONLY`.
+- the browser E2E required the Integrations view to report `implementation=gin`; that earlier artifact confirmed the then-current HTTP/Gin runtime before stage 4 replaced orchestrator→executor traffic with gRPC.
 - screenshot artifact `epochdeploy-browser-e2e`: artifact id `10676288669`, SHA-256 `e22a4ff19935a8e8ee476479aaa9638a9157da62674eeaa2bbd2a82b757f53ba`.
 
 This means Gin is no longer a keyword-only or source-only claim: it is the executor implementation used by the verified Docker Compose path.
@@ -188,6 +206,5 @@ These items are **not** claimed complete:
 
 - **PostgreSQL query-plan and database-lock contention analysis:** the PostgreSQL-backed Compose path is now remotely verified, but `EXPLAIN (ANALYZE, BUFFERS)` tuning and multi-writer lock-contention testing have not been run.
 - **Actual GitLab Runner execution:** `.gitlab-ci.yml` is present and structurally reviewed, but no runner is connected here. The successful GitHub-hosted workflow is supplementary validation, not a claim that GitLab CI itself ran.
-- **Generated gRPC transport:** `proto/executor.proto` documents the target service contract, but `protoc` and required networked Go dependencies are unavailable here. The verified transport is signed HTTP/JSON.
 - **Kubernetes deployment:** intentionally deferred until the container path can be executed and verified.
 - **Remote GitHub repository:** `sokldjs554/epochdeploy` exists. The previous release was compared file-by-file against local Git blob SHAs before merge; this verification discipline remains the handoff requirement for the current UI/E2E update.

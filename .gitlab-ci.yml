@@ -1,5 +1,19 @@
 stages: [verify, integration]
 
+grpc-codegen:
+  stage: verify
+  image: golang:1.23
+  before_script:
+    - apt-get update
+    - apt-get install -y protobuf-compiler python3 python3-pip
+    - python3 -m pip install --break-system-packages grpcio-tools
+    - go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.9
+    - go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+  script:
+    - bash scripts/generate-grpc.sh
+    - cd executor-gin && go mod tidy && cd ..
+    - git diff --exit-code -- executor-gin/gen orchestrator/app/gen executor-gin/go.mod executor-gin/go.sum
+
 python-tests:
   stage: verify
   image: python:3.12-slim

@@ -33,10 +33,10 @@ JWT Operator/Approver ┘          │                    │
 ### Role split
 
 - **FastAPI** — orchestration, GitLab webhook ingestion, JWT/RBAC, evidence upload, relational workflow state, receipts.
-- **Go/Gin** — production-shaped authenticated execution boundary, independent live-target observation, capability verification, and final TOCTOU check. A stdlib adapter remains for zero-dependency local verification.
+- **Go/Gin + gRPC** — production-shaped authenticated execution boundary. Docker Compose sends Observe/Execute over signed gRPC on port 9090; Gin HTTP on 9080 remains a health/compatibility adapter. Both share the same target store, capability verifier, and TOCTOU core.
 - **PostgreSQL** — epochs, agent change requests, append-only passport events, approvals, live target observations, evidence, receipts, outbox.
 - **GitLab CI** — test stages plus a Docker Compose contract job.
-- **gRPC contract** — `proto/executor.proto`; HTTP/JSON is the first runnable transport so local development does not depend on `protoc`.
+- **gRPC runtime** — `proto/executor.proto` is generated into checked, drift-verified Go/Python bindings. FastAPI signs deterministic protobuf requests in gRPC metadata; the Go executor verifies the signature before Observe/Execute.
 
 ## Demo credentials
 
@@ -67,7 +67,7 @@ Open `http://localhost:8000`.
 docker compose up --build
 ```
 
-This switches the orchestrator to PostgreSQL and talks to the separate **Go/Gin** executor over signed HTTP. Executor requests use timestamped HMAC-SHA256 and the executor port stays internal to the Compose network. See `proto/executor.proto` for the gRPC service contract.
+This switches the orchestrator to PostgreSQL and talks to the separate **Go/Gin** executor over **signed gRPC**. The executor exposes gRPC internally on 9090 and keeps Gin HTTP on 9080 for health/compatibility. Observe/Execute protobuf requests are HMAC-SHA256 signed with timestamp + RPC method + deterministic protobuf bytes.
 
 ## Test strategy
 
@@ -79,7 +79,7 @@ This switches the orchestrator to PostgreSQL and talks to the separate **Go/Gin*
 - happy-path execution;
 - stale commit/artifact/config fail-closed tests;
 - idempotent execution receipts;
-- Go core/server tests, including HMAC tamper/stale-signature checks and cross-runtime fingerprint vectors;
+- Go core/server tests, including HTTP HMAC checks, gRPC metadata authentication, cross-runtime fingerprint vectors, capability scope enforcement, and stale-target behavior;
 - live HTTP smoke script (`scripts/smoke.sh`);
 - Chromium browser E2E across Release Control, **Policy Simulator**, Change Passport, Evidence, Execution Receipts, and Integrations (`scripts/browser-e2e.py`);
 - GitLab Docker Compose integration job.
@@ -88,6 +88,6 @@ This switches the orchestrator to PostgreSQL and talks to the separate **Go/Gin*
 
 The local verification harness runs Python tests, Go race/vet checks, package installation, signed two-service HTTP smoke tests, and repeated stale-approval checks. A separate Chromium E2E script clicks through the service UI, performs a real evidence upload, inspects execution receipts and integration status, then verifies both `EXECUTED` and `DENIED_STALE` flows. A supplementary GitHub-hosted workflow also builds the Docker images, starts the Compose stack with **PostgreSQL 16**, verifies the production-shaped database path, and repeats the end-to-end smoke flow.
 
-GitLab CI remains the job-aligned pipeline contract in `.gitlab-ci.yml`; a real GitLab Runner has not been connected in this environment. The Gin executor is now exercised in Docker Compose and remote Chromium E2E. Generated gRPC transport and Kubernetes are still not claimed as executed; browser E2E is part of the verification evidence. See `docs/verification.md` for the exact evidence and remaining boundaries.
+GitLab CI remains the job-aligned pipeline contract in `.gitlab-ci.yml`; a real GitLab Runner has not been connected in this environment. The Gin executor and generated gRPC transport are exercised in Docker Compose and remote Chromium E2E. Kubernetes is still not claimed as executed; browser E2E is part of the verification evidence. See `docs/verification.md` for the exact evidence and remaining boundaries.
 
 See `docs/architecture.md`, `docs/demo-script.md`, and `docs/verification.md`.

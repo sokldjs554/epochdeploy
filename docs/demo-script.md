@@ -26,4 +26,4 @@ Show the architecture strip: FastAPI orchestration -> PostgreSQL workflow state 
 
 - **Evidence:** upload `build-provenance.txt` and show the backend-recorded SHA-256 digest.
 - **Execution Receipts:** show the exact approved/observed fingerprints and the terminal outcome.
-- **Integrations:** show which boundaries are actually configured and point out that gRPC remains a contract, not a falsely claimed runtime.
+- **Integrations:** show the live runtime boundary: Go implementation = `gin`, executor mode/transport = `grpc`, PostgreSQL backend = `postgresql`, and gRPC Runtime = `ACTIVE`.

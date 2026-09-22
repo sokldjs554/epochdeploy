@@ -24,6 +24,7 @@ class Settings:
     jwt_secret: str = os.getenv("EPOCHDEPLOY_JWT_SECRET", "dev-only-secret")
     gitlab_webhook_token: str = os.getenv("EPOCHDEPLOY_GITLAB_WEBHOOK_TOKEN", "local-demo-token")
     executor_url: str = os.getenv("EPOCHDEPLOY_EXECUTOR_URL", "http://127.0.0.1:9080")
+    executor_grpc_target: str = os.getenv("EPOCHDEPLOY_EXECUTOR_GRPC_TARGET", "127.0.0.1:9090")
     executor_mode: str = os.getenv("EPOCHDEPLOY_EXECUTOR_MODE", "local")
     executor_hmac_secret: str = os.getenv("EPOCHDEPLOY_EXECUTOR_HMAC_SECRET", "local-executor-secret")
     capability_secret: str = os.getenv("EPOCHDEPLOY_CAPABILITY_SECRET", "local-capability-secret-change-me-32bytes")

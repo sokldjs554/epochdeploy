@@ -65,27 +65,17 @@ func buildRouter(secret, capabilitySecret string, store *boundary.TargetStore) *
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 			return
 		}
-		if req.Context != nil && req.Context.ActorType == "ai_agent" {
-			if req.Context.Action != "deploy" || req.Context.CapabilityToken == "" {
-				c.JSON(http.StatusForbidden, gin.H{"error": "AI agent execution requires a scoped deploy capability"})
-				return
-			}
-			expectedFP := core.Fingerprint(req.Expected)
-			if req.Context.ApprovedFingerprint != expectedFP {
-				c.JSON(http.StatusForbidden, gin.H{"error": "capability approved fingerprint does not match expected release"})
-				return
-			}
-			_, err := boundary.VerifyCapability(
+		if req.Context != nil {
+			err := boundary.ValidateAgentExecutionCapability(
 				capabilitySecret,
-				req.Context.CapabilityToken,
-				boundary.CapabilityExpectation{
+				req.Expected,
+				boundary.AgentExecutionContext{
 					EpochID: req.Context.EpochID,
-					ActorType: "ai_agent",
+					ActorType: req.Context.ActorType,
 					ActorID: req.Context.ActorID,
-					Project: req.Expected.Project,
-					Environment: req.Expected.Environment,
-					Action: "deploy",
-					Fingerprint: expectedFP,
+					Action: req.Context.Action,
+					ApprovedFingerprint: req.Context.ApprovedFingerprint,
+					CapabilityToken: req.Context.CapabilityToken,
 				},
 				time.Now(),
 			)
@@ -148,10 +138,19 @@ func main() {
 	if port == "" {
 		port = "9080"
 	}
+	grpcPort := os.Getenv("EPOCHDEPLOY_EXECUTOR_GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "9090"
+	}
+	store := boundary.NewTargetStore()
+	grpcServer, err := startGRPCServer(grpcPort, secret, capabilitySecret, store)
+	if err != nil {
+		log.Fatalf("failed to start gRPC executor on :%s: %v", grpcPort, err)
+	}
 
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           buildRouter(secret, capabilitySecret, boundary.NewTargetStore()),
+		Handler:           buildRouter(secret, capabilitySecret, store),
 		ReadHeaderTimeout: 2 * time.Second,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      5 * time.Second,
@@ -164,12 +163,14 @@ func main() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		grpcServer.GracefulStop()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			log.Printf("Gin executor graceful shutdown failed: %v", err)
 		}
 	}()
 
-	log.Printf("epochdeploy Gin executor listening on :%s", port)
+	log.Printf("epochdeploy Gin HTTP adapter listening on :%s", port)
+	log.Printf("epochdeploy gRPC executor listening on :%s", grpcPort)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
