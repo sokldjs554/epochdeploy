@@ -14,7 +14,7 @@ EpochDeploy is a small control plane for one narrow systems problem: **the thing
 ## Why Python + Go
 
 - **Python/FastAPI:** orchestration, auth, GitLab webhooks, evidence ingestion, relational workflow state, UI API.
-- **Go:** small deterministic execution boundary with a tiny attack surface. The demo adapter keeps only ephemeral live-target observations; workflow state remains in PostgreSQL. A production adapter would resolve the target directly from the deployment environment.
+- **Go/Gin:** the production-shaped Compose path runs a Gin adapter around the same deterministic execution core. The stdlib adapter is retained for zero-dependency local verification. Both keep only ephemeral live-target observations; workflow state remains in PostgreSQL.
 
 The transport boundary is deliberately explicit. `proto/executor.proto` is the intended gRPC contract. The first runnable transport is HTTP/JSON so the repository remains locally testable without code generation; gRPC transport can be generated from the same service contract in a network-enabled build environment.
 
@@ -24,4 +24,4 @@ The production `docker-compose.yml` uses PostgreSQL. SQLite is supported only as
 
 ## Service-to-service trust
 
-The runnable HTTP transport is not anonymous. FastAPI signs the exact request body with HMAC-SHA256 plus a Unix timestamp; the Go boundary rejects missing/invalid signatures and requests outside a 30-second clock-skew window. In Docker Compose the executor is only exposed on the internal service network.
+The verified production-shaped HTTP transport is Gin-based and is not anonymous. FastAPI signs the exact request body with HMAC-SHA256 plus a Unix timestamp; the Go boundary rejects missing/invalid signatures and requests outside a 30-second clock-skew window. In Docker Compose the executor is only exposed on the internal service network.
