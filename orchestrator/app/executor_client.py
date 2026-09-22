@@ -163,10 +163,10 @@ class GRPCExecutorClient:
 
     def execute(self, expected: dict[str, str], observed: dict[str, str], context: dict | None = None) -> ExecutorResult:
         del observed
-        request = executor_pb2.ExecuteRequest(
-            expected=_pb_identity(expected),
-            context=_pb_context(context),
-        )
+        request = executor_pb2.ExecuteRequest(expected=_pb_identity(expected))
+        pb_context = _pb_context(context)
+        if pb_context is not None:
+            request.context.CopyFrom(pb_context)
         started = time.perf_counter()
         try:
             with grpc.insecure_channel(settings.executor_grpc_target) as channel:
