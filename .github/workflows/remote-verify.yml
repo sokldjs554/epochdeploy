@@ -28,7 +28,7 @@ jobs:
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.9
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
       - name: Generate Python and Go gRPC bindings
-        run: ./scripts/generate-grpc.sh
+        run: bash scripts/generate-grpc.sh
       - name: Upload generated bindings
         uses: actions/upload-artifact@v7
         with:
