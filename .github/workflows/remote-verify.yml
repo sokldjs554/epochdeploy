@@ -33,14 +33,16 @@ jobs:
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.9
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
       - name: Generate Python and Go gRPC bindings
-        run: bash scripts/generate-grpc.sh
+        run: |
+          bash scripts/generate-grpc.sh
+          (cd executor-gin && go mod tidy)
       - name: Commit deterministic generated bindings
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         run: |
-          if [[ -n "$(git status --porcelain -- executor-gin/gen orchestrator/app/gen)" ]]; then
+          if [[ -n "$(git status --porcelain -- executor-gin/gen orchestrator/app/gen executor-gin/go.mod executor-gin/go.sum)" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add executor-gin/gen orchestrator/app/gen
+            git add executor-gin/gen orchestrator/app/gen executor-gin/go.mod executor-gin/go.sum
             git commit -m "build: regenerate gRPC bindings"
             git push origin HEAD:"${GITHUB_HEAD_REF}"
           else
