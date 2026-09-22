@@ -37,9 +37,10 @@
             <div class="panel-head"><div><small>DEMO WORKFLOW</small><h2>Stale approval rehearsal</h2></div><span class="badge">TOCTOU GUARD</span></div>
             <div class="steps">
               <button id="boot" class="step"><span>1</span><div><b>Create immutable epoch</b><small>commit + digest + config hash</small></div></button>
-              <button id="approve" class="step" disabled><span>2</span><div><b>Approve exact fingerprint</b><small>separate approver role</small></div></button>
-              <button id="drift" class="step danger" disabled><span>3</span><div><b>Inject artifact drift</b><small>simulate change after approval</small></div></button>
-              <button id="execute" class="step" disabled><span>4</span><div><b>Execute with final re-check</b><small>Go boundary compares live identity</small></div></button>
+              <button id="approve" class="step" disabled><span>2</span><div><b>Approve exact fingerprint</b><small>separate human approver role</small></div></button>
+              <button id="capability" class="step" disabled><span>3</span><div><b>Issue scoped capability</b><small>epoch + actor + env + action + fingerprint + expiry</small></div></button>
+              <button id="drift" class="step danger" disabled><span>4</span><div><b>Inject artifact drift</b><small>simulate change after approval</small></div></button>
+              <button id="execute" class="step" disabled><span>5</span><div><b>Agent execute with final re-check</b><small>Gin validates capability before live identity</small></div></button>
             </div>
             <div id="result" class="result muted">Run the workflow to generate an execution receipt.</div>
           </article>

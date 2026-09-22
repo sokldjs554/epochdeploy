@@ -71,6 +71,15 @@ class ExecuteRequest(StrictModel):
     idempotency_key: str = Field(min_length=8, max_length=120)
 
 
+class CapabilityIssueRequest(StrictModel):
+    ttl_seconds: int = Field(default=300, ge=30, le=900)
+
+
+class AgentExecuteRequest(StrictModel):
+    idempotency_key: str = Field(min_length=8, max_length=120)
+    capability_token: str = Field(min_length=32, max_length=4096)
+
+
 class DriftRequest(StrictModel):
     field: str
     value: str = Field(min_length=1, max_length=256)

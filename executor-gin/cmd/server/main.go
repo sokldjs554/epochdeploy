@@ -17,15 +17,25 @@ import (
 
 const signedBodyKey = "epochdeploy.signed_body"
 
+type executionContext struct {
+	EpochID             string `json:"epoch_id"`
+	ActorType           string `json:"actor_type"`
+	ActorID             string `json:"actor_id"`
+	Action              string `json:"action"`
+	ApprovedFingerprint string `json:"approved_fingerprint"`
+	CapabilityToken     string `json:"capability_token"`
+}
+
 type executeRequest struct {
-	Expected core.Identity `json:"expected"`
+	Expected core.Identity   `json:"expected"`
+	Context  *executionContext `json:"context,omitempty"`
 }
 
 type observeRequest struct {
 	Identity core.Identity `json:"identity"`
 }
 
-func buildRouter(secret string, store *boundary.TargetStore) *gin.Engine {
+func buildRouter(secret, capabilitySecret string, store *boundary.TargetStore) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -52,6 +62,35 @@ func buildRouter(secret string, store *boundary.TargetStore) *gin.Engine {
 		if !decodeSignedBody(c, &req) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 			return
+		}
+		if req.Context != nil && req.Context.ActorType == "ai_agent" {
+			if req.Context.Action != "deploy" || req.Context.CapabilityToken == "" {
+				c.JSON(http.StatusForbidden, gin.H{"error": "AI agent execution requires a scoped deploy capability"})
+				return
+			}
+			expectedFP := core.Fingerprint(req.Expected)
+			if req.Context.ApprovedFingerprint != expectedFP {
+				c.JSON(http.StatusForbidden, gin.H{"error": "capability approved fingerprint does not match expected release"})
+				return
+			}
+			_, err := boundary.VerifyCapability(
+				capabilitySecret,
+				req.Context.CapabilityToken,
+				boundary.CapabilityExpectation{
+					EpochID: req.Context.EpochID,
+					ActorType: "ai_agent",
+					ActorID: req.Context.ActorID,
+					Project: req.Expected.Project,
+					Environment: req.Expected.Environment,
+					Action: "deploy",
+					Fingerprint: expectedFP,
+				},
+				time.Now(),
+			)
+			if err != nil {
+				c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+				return
+			}
 		}
 		observed, ok := store.Get(req.Expected)
 		if !ok {
@@ -99,6 +138,10 @@ func main() {
 	if secret == "" {
 		log.Fatal("EPOCHDEPLOY_EXECUTOR_HMAC_SECRET is required")
 	}
+	capabilitySecret := os.Getenv("EPOCHDEPLOY_CAPABILITY_SECRET")
+	if capabilitySecret == "" {
+		log.Fatal("EPOCHDEPLOY_CAPABILITY_SECRET is required")
+	}
 	port := os.Getenv("EPOCHDEPLOY_EXECUTOR_PORT")
 	if port == "" {
 		port = "9080"
@@ -106,7 +149,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           buildRouter(secret, boundary.NewTargetStore()),
+		Handler:           buildRouter(secret, capabilitySecret, boundary.NewTargetStore()),
 		ReadHeaderTimeout: 2 * time.Second,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      5 * time.Second,

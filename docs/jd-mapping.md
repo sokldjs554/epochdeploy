@@ -10,7 +10,7 @@
 | JWT auth | signed JWT, RBAC split across operator/approver/admin |
 | Image/file upload | bounded multipart upload, filename sanitization, SHA-256 evidence hashing |
 | Stability | idempotent receipts, terminal state machine, fail-closed stale checks, outbox record |
-| AI DevOps execution governance | AI-agent change provenance, human approval, immutable release identity, and append-only Change Passport timeline |
+| AI DevOps execution governance | AI-agent change provenance, human approval, immutable release identity, short-lived scoped capability, Gin-side capability verification, and append-only Change Passport timeline |
 | Performance/scalability | small stateless Go execution service; indexed relational query paths; local concurrency benchmark script |
 | Testing/documentation | Python API tests, stdlib Go core tests, Gin vet/race tests, live two-service smoke, Chromium E2E, demo runbook, verification log |
 | Kubernetes optional | Docker images/Compose are ready; Kubernetes manifests intentionally deferred until container runtime verification exists |

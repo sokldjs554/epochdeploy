@@ -20,6 +20,7 @@ services:
     environment:
       EPOCHDEPLOY_EXECUTOR_PORT: "9080"
       EPOCHDEPLOY_EXECUTOR_HMAC_SECRET: "local-executor-secret"
+      EPOCHDEPLOY_CAPABILITY_SECRET: "local-capability-secret-change-me-32bytes"
     expose:
       - "9080"
 
@@ -39,6 +40,7 @@ services:
       EPOCHDEPLOY_EXECUTOR_URL: http://executor:9080
       EPOCHDEPLOY_EXECUTOR_MODE: http
       EPOCHDEPLOY_EXECUTOR_HMAC_SECRET: local-executor-secret
+      EPOCHDEPLOY_CAPABILITY_SECRET: local-capability-secret-change-me-32bytes
       EPOCHDEPLOY_UPLOAD_DIR: /data/evidence
       EPOCHDEPLOY_DEMO_MODE: "true"
     ports:
