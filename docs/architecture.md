@@ -6,10 +6,12 @@ EpochDeploy is a small control plane for one narrow systems problem: **the thing
 
 1. GitLab pipeline evidence arrives at the FastAPI orchestrator.
 2. The orchestrator creates an immutable deployment epoch from five identity fields: project, environment, commit SHA, artifact digest, and configuration hash.
-3. A separate approver binds approval to the epoch fingerprint.
-4. The Go executor maintains the most recent target observation behind its authenticated internal boundary; execute requests contain only the approved expected identity, not a caller-supplied observed value.
-5. Immediately before execution, the Go executor recomputes the observed fingerprint and compares it with the approved identity. Exact match -> `EXECUTED`. Any mismatch -> `DENIED_STALE` with a field-level diff.
-6. The orchestrator stores an execution receipt and a transactional-outbox event in the same DB transaction.
+3. Agent-originated work is linked to a one-to-one Change Request that records **why** the change exists, the AI actor, the human requester, and the requested action.
+4. An append-only Change Passport records GitLab verification, human approval, evidence attachment, and terminal execution events.
+5. A separate approver binds approval to the epoch fingerprint.
+6. The Go executor maintains the most recent target observation behind its authenticated internal boundary; execute requests contain only the approved expected identity, not a caller-supplied observed value.
+7. Immediately before execution, the Go executor recomputes the observed fingerprint and compares it with the approved identity. Exact match -> `EXECUTED`. Any mismatch -> `DENIED_STALE` with a field-level diff.
+8. The orchestrator stores an execution receipt and a transactional-outbox event in the same DB transaction.
 
 ## Why Python + Go
 
