@@ -56,6 +56,13 @@ class EpochCreate(IdentityFields):
     pipeline_id: str = Field(min_length=1, max_length=80)
 
 
+class AgentChangeCreate(EpochCreate):
+    change_request_id: str = Field(min_length=2, max_length=120)
+    reason: str = Field(min_length=8, max_length=1000)
+    actor_id: str = Field(min_length=2, max_length=120)
+    action: str = Field(default="deploy", pattern=r"^[a-z][a-z0-9_-]{1,39}$")
+
+
 class TargetObservation(IdentityFields):
     pass
 

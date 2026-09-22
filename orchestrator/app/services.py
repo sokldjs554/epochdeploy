@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .executor_client import ExecutorBoundaryError, executor_client
 from .fingerprint import fingerprint
+from .governance import record_event
 from .models import Approval, ArtifactEvidence, DeploymentEpoch, ExecutionReceipt, LiveTarget, OutboxEvent
 
 
@@ -35,6 +36,15 @@ def create_epoch(db: Session, payload, created_by: str, *, pipeline_status: str 
         **payload.model_dump(),
     )
     db.add(row)
+    record_event(
+        db,
+        epoch_id=row.id,
+        event_type="EPOCH_CREATED",
+        actor_type="human",
+        actor_id=created_by,
+        summary=f"Deployment epoch created for {row.project}/{row.environment}",
+        details={"fingerprint": row.fingerprint, "pipeline_id": row.pipeline_id},
+    )
     db.commit()
     return row
 
@@ -51,6 +61,15 @@ def approve_epoch(db: Session, epoch: DeploymentEpoch, approver: str) -> Approva
     approval = Approval(epoch_id=locked.id, approver=approver, approved_fingerprint=locked.fingerprint)
     locked.state = "APPROVED"
     db.add(approval)
+    record_event(
+        db,
+        epoch_id=locked.id,
+        event_type="APPROVED",
+        actor_type="human",
+        actor_id=approver,
+        summary="Human approver bound approval to the immutable release fingerprint",
+        details={"approved_fingerprint": locked.fingerprint},
+    )
     db.commit()
     return approval
 
@@ -130,6 +149,20 @@ def execute_epoch(db: Session, epoch: DeploymentEpoch, idempotency_key: str) -> 
         "expected_fingerprint": locked.fingerprint,
         "observed_fingerprint": result.observed_fingerprint,
     }))
+    record_event(
+        db,
+        epoch_id=locked.id,
+        event_type=result.outcome,
+        actor_type="service",
+        actor_id="go-executor",
+        summary=result.reason,
+        details={
+            "expected_fingerprint": locked.fingerprint,
+            "observed_fingerprint": result.observed_fingerprint,
+            "differences": result.differences,
+            "latency_ms": result.latency_ms,
+        },
+    )
     db.commit()
     return receipt, result.differences
 
@@ -156,6 +189,15 @@ async def save_evidence(db: Session, epoch: DeploymentEpoch, kind: str, upload: 
         storage_path=str(path),
     )
     db.add(row)
+    record_event(
+        db,
+        epoch_id=epoch.id,
+        event_type="EVIDENCE_ATTACHED",
+        actor_type="service",
+        actor_id="fastapi-orchestrator",
+        summary=f"Evidence attached: {safe_name}",
+        details={"kind": kind, "sha256": sha, "size_bytes": len(content)},
+    )
     try:
         db.commit()
     except Exception:

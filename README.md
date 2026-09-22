@@ -11,7 +11,8 @@ This is not a DevOps chatbot, log summarizer, or generic Internal Developer Plat
 - approve an exact commit + artifact digest + config hash;
 - mutate one of them after approval;
 - verify the Go execution boundary rejects the stale approval with a field-level diff;
-- persist an auditable execution receipt.
+- persist an auditable execution receipt;
+- connect **why / who / approval / evidence / execution** in an append-only Change Passport for human and AI-agent actions.
 
 ## Architecture
 
@@ -31,7 +32,7 @@ JWT Operator/Approver ┘          │                    │
 
 - **FastAPI** — orchestration, GitLab webhook ingestion, JWT/RBAC, evidence upload, relational workflow state, receipts.
 - **Go/Gin** — production-shaped authenticated execution boundary, independent live-target observation, and final TOCTOU check. A stdlib adapter remains for zero-dependency local verification.
-- **PostgreSQL** — epochs, approvals, live target observations, evidence, receipts, outbox.
+- **PostgreSQL** — epochs, agent change requests, append-only passport events, approvals, live target observations, evidence, receipts, outbox.
 - **GitLab CI** — test stages plus a Docker Compose contract job.
 - **gRPC contract** — `proto/executor.proto`; HTTP/JSON is the first runnable transport so local development does not depend on `protoc`.
 
@@ -78,7 +79,7 @@ This switches the orchestrator to PostgreSQL and talks to the separate **Go/Gin*
 - idempotent execution receipts;
 - Go core/server tests, including HMAC tamper/stale-signature checks and cross-runtime fingerprint vectors;
 - live HTTP smoke script (`scripts/smoke.sh`);
-- Chromium browser E2E across Release Control, Evidence, Execution Receipts, and Integrations (`scripts/browser-e2e.py`);
+- Chromium browser E2E across Release Control, **Change Passport**, Evidence, Execution Receipts, and Integrations (`scripts/browser-e2e.py`);
 - GitLab Docker Compose integration job.
 
 ## Verification boundary
