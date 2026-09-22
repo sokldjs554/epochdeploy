@@ -179,7 +179,7 @@ def approve(epoch_id: str, user: User = Depends(require_role("approver", "admin"
 def issue_capability(
     epoch_id: str,
     payload: CapabilityIssueRequest,
-    user: User = Depends(require_role("approver", "admin")),
+    user: User = Depends(require_role("operator", "approver", "admin")),
     db: Session = Depends(get_db),
 ):
     row = _epoch_or_404(db, epoch_id)
