@@ -53,7 +53,7 @@ func buildRouter(secret, capabilitySecret string, store *boundary.TargetStore) *
 	v1.POST("/targets/observe", func(c *gin.Context) {
 		var req observeRequest
 		if !decodeSignedBody(c, &req) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "요청 형식이 올바르지 않습니다."})
 			return
 		}
 		store.Put(req.Identity)
@@ -62,7 +62,7 @@ func buildRouter(secret, capabilitySecret string, store *boundary.TargetStore) *
 	v1.POST("/execute", func(c *gin.Context) {
 		var req executeRequest
 		if !decodeSignedBody(c, &req) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "요청 형식이 올바르지 않습니다."})
 			return
 		}
 		if req.Context != nil {
@@ -86,7 +86,7 @@ func buildRouter(secret, capabilitySecret string, store *boundary.TargetStore) *
 		}
 		observed, ok := store.Get(req.Expected)
 		if !ok {
-			c.JSON(http.StatusConflict, gin.H{"error": "live target has not been observed by executor"})
+			c.JSON(http.StatusConflict, gin.H{"error": "executor가 live target을 아직 관찰하지 않았습니다."})
 			return
 		}
 		c.JSON(http.StatusOK, core.Compare(req.Expected, observed))
@@ -98,7 +98,7 @@ func signedMiddleware(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10))
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "요청 형식이 올바르지 않습니다."})
 			return
 		}
 		if !boundary.ValidSignature(
@@ -108,7 +108,7 @@ func signedMiddleware(secret string) gin.HandlerFunc {
 			c.GetHeader("X-EpochDeploy-Signature"),
 			time.Now(),
 		) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid executor signature"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "executor 서명이 유효하지 않습니다."})
 			return
 		}
 		c.Set(signedBodyKey, body)
@@ -128,11 +128,11 @@ func decodeSignedBody(c *gin.Context, dst any) bool {
 func main() {
 	secret := os.Getenv("EPOCHDEPLOY_EXECUTOR_HMAC_SECRET")
 	if secret == "" {
-		log.Fatal("EPOCHDEPLOY_EXECUTOR_HMAC_SECRET is required")
+		log.Fatal("EPOCHDEPLOY_EXECUTOR_HMAC_SECRET 환경변수가 필요합니다.")
 	}
 	capabilitySecret := os.Getenv("EPOCHDEPLOY_CAPABILITY_SECRET")
 	if capabilitySecret == "" {
-		log.Fatal("EPOCHDEPLOY_CAPABILITY_SECRET is required")
+		log.Fatal("EPOCHDEPLOY_CAPABILITY_SECRET 환경변수가 필요합니다.")
 	}
 	port := os.Getenv("EPOCHDEPLOY_EXECUTOR_PORT")
 	if port == "" {
@@ -145,7 +145,7 @@ func main() {
 	store := boundary.NewTargetStore()
 	grpcServer, err := startGRPCServer(grpcPort, secret, capabilitySecret, store)
 	if err != nil {
-		log.Fatalf("failed to start gRPC executor on :%s: %v", grpcPort, err)
+		log.Fatalf("gRPC executor 시작 실패 :%s: %v", grpcPort, err)
 	}
 
 	srv := &http.Server{
@@ -165,12 +165,12 @@ func main() {
 		defer cancel()
 		grpcServer.GracefulStop()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Gin executor graceful shutdown failed: %v", err)
+			log.Printf("Gin executor 정상 종료 실패: %v", err)
 		}
 	}()
 
-	log.Printf("epochdeploy Gin HTTP adapter listening on :%s", port)
-	log.Printf("epochdeploy gRPC executor listening on :%s", grpcPort)
+	log.Printf("epochdeploy Gin HTTP adapter 대기 중 :%s", port)
+	log.Printf("epochdeploy gRPC executor 대기 중 :%s", grpcPort)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

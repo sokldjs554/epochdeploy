@@ -34,21 +34,21 @@ class IdentityFields(StrictModel):
     @classmethod
     def immutable_commit(cls, value: str) -> str:
         if not _HEX_RE.fullmatch(value):
-            raise ValueError("commit_sha must be a hexadecimal immutable Git commit id")
+            raise ValueError("commit_sha는 16진수 immutable Git commit id여야 합니다.")
         return value.lower()
 
     @field_validator("artifact_digest")
     @classmethod
     def immutable_artifact(cls, value: str) -> str:
         if not _SHA256_RE.fullmatch(value):
-            raise ValueError("artifact_digest must be an immutable sha256:<64 hex> digest")
+            raise ValueError("artifact_digest는 immutable sha256:<64 hex> digest 형식이어야 합니다.")
         return value.lower()
 
     @field_validator("config_hash")
     @classmethod
     def immutable_config(cls, value: str) -> str:
         if not _CONFIG_RE.fullmatch(value):
-            raise ValueError("config_hash must be cfg:<32-64 hex> or sha256:<64 hex>")
+            raise ValueError("config_hash는 cfg:<32-64 hex> 또는 sha256:<64 hex> 형식이어야 합니다.")
         return value.lower()
 
 

@@ -20,7 +20,7 @@ def evaluate_policy(*, actor_type: str, action: str, environment: str) -> Policy
         return PolicyDecision(
             decision="DENY",
             rule_id="deny-destructive-action",
-            reason="Destructive actions are not delegable to autonomous agents.",
+            reason="파괴적 작업은 자율 Agent에게 위임할 수 없습니다.",
             required_controls=("manual-operator",),
         )
 
@@ -28,7 +28,7 @@ def evaluate_policy(*, actor_type: str, action: str, environment: str) -> Policy
         return PolicyDecision(
             decision="ALLOW",
             rule_id="allow-readonly",
-            reason="Read-only operations do not mutate deployment state.",
+            reason="읽기 전용 작업은 배포 상태를 변경하지 않습니다.",
             required_controls=(),
         )
 
@@ -36,7 +36,7 @@ def evaluate_policy(*, actor_type: str, action: str, environment: str) -> Policy
         return PolicyDecision(
             decision="ASK",
             rule_id="ask-agent-production-write",
-            reason="AI-agent production writes require explicit human approval.",
+            reason="AI Agent의 운영 환경 쓰기 작업에는 명시적인 사람 승인이 필요합니다.",
             required_controls=("verified-pipeline", "human-approval", "scoped-capability"),
         )
 
@@ -44,13 +44,13 @@ def evaluate_policy(*, actor_type: str, action: str, environment: str) -> Policy
         return PolicyDecision(
             decision="ALLOW",
             rule_id="allow-agent-nonprod-write",
-            reason="Non-production agent writes are allowed with an immutable release and scoped capability.",
+            reason="비운영 환경의 Agent 쓰기 작업은 immutable release와 scoped capability가 있으면 허용됩니다.",
             required_controls=("verified-pipeline", "scoped-capability"),
         )
 
     return PolicyDecision(
         decision="ASK",
         rule_id="ask-default-mutating-action",
-        reason="Unknown or mutating actions require human review.",
+        reason="알 수 없거나 상태를 변경하는 작업은 사람 검토가 필요합니다.",
         required_controls=("human-approval",),
     )

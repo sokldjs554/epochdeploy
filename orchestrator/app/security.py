@@ -46,20 +46,20 @@ def current_user(
     db: Session = Depends(get_db),
 ) -> User:
     if creds is None:
-        raise HTTPException(status_code=401, detail="missing bearer token")
+        raise HTTPException(status_code=401, detail="Bearer token이 없습니다.")
     try:
         payload = jwt.decode(creds.credentials, settings.jwt_secret, algorithms=["HS256"])
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="invalid token")
+        raise HTTPException(status_code=401, detail="유효하지 않은 token입니다.")
     user = db.query(User).filter(User.username == payload.get("sub")).one_or_none()
     if user is None:
-        raise HTTPException(status_code=401, detail="user not found")
+        raise HTTPException(status_code=401, detail="사용자를 찾을 수 없습니다.")
     return user
 
 
 def require_role(*roles: str):
     def dep(user: User = Depends(current_user)) -> User:
         if user.role not in roles:
-            raise HTTPException(status_code=403, detail="insufficient role")
+            raise HTTPException(status_code=403, detail="권한이 부족합니다.")
         return user
     return dep

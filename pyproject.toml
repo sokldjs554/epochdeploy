@@ -1,7 +1,7 @@
 [project]
 name = "epochdeploy"
 version = "0.1.0"
-description = "TOCTOU-safe deployment control plane for AI-assisted DevOps"
+description = "AI 기반 DevOps를 위한 TOCTOU 안전 배포 제어 플레인"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115",

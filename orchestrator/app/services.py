@@ -45,7 +45,7 @@ def create_epoch(db: Session, payload, created_by: str, *, pipeline_status: str 
         event_type="EPOCH_CREATED",
         actor_type="human",
         actor_id=created_by,
-        summary=f"Deployment epoch created for {row.project}/{row.environment}",
+        summary=f"Deployment epoch 생성: {row.project}/{row.environment}",
         details={"fingerprint": row.fingerprint, "pipeline_id": row.pipeline_id},
     )
     db.commit()
@@ -57,7 +57,7 @@ def approve_epoch(db: Session, epoch: DeploymentEpoch, approver: str) -> Approva
         select(DeploymentEpoch).where(DeploymentEpoch.id == epoch.id).with_for_update()
     ).scalar_one()
     if locked.pipeline_status != "success":
-        raise HTTPException(status_code=409, detail="verified GitLab pipeline must be successful before approval")
+        raise HTTPException(status_code=409, detail="승인 전에 검증된 GitLab pipeline이 성공 상태여야 합니다.")
     existing = db.query(Approval).filter(Approval.epoch_id == locked.id).one_or_none()
     if existing:
         return existing
@@ -70,7 +70,7 @@ def approve_epoch(db: Session, epoch: DeploymentEpoch, approver: str) -> Approva
         event_type="APPROVED",
         actor_type="human",
         actor_id=approver,
-        summary="Human approver bound approval to the immutable release fingerprint",
+        summary="사람 승인자가 immutable release fingerprint에 승인을 연결했습니다.",
         details={"approved_fingerprint": locked.fingerprint},
     )
     db.commit()
@@ -88,9 +88,9 @@ def issue_execution_capability(
     ).scalar_one()
     change = db.query(ChangeRequest).filter(ChangeRequest.epoch_id == locked.id).one_or_none()
     if change is None or change.actor_type != "ai_agent":
-        raise HTTPException(status_code=409, detail="scoped capability is only issued for AI-agent-originated changes")
+        raise HTTPException(status_code=409, detail="scoped capability는 AI Agent가 시작한 변경에만 발급됩니다.")
     if locked.pipeline_status != "success":
-        raise HTTPException(status_code=409, detail="verified pipeline is required before capability issuance")
+        raise HTTPException(status_code=409, detail="capability 발급 전에 검증된 pipeline이 필요합니다.")
 
     decision = evaluate_policy(
         actor_type=change.actor_type,
@@ -103,7 +103,7 @@ def issue_execution_capability(
         event_type="POLICY_EVALUATED",
         actor_type="system",
         actor_id="policy-engine",
-        summary=f"Policy decision {decision.decision}: {decision.reason}",
+        summary=f"정책 결정 {decision.decision}: {decision.reason}",
         details={
             "decision": decision.decision,
             "rule_id": decision.rule_id,
@@ -121,7 +121,7 @@ def issue_execution_capability(
     if decision.decision == "ASK":
         if locked.state != "APPROVED" or approval is None or approval.approved_fingerprint != locked.fingerprint:
             db.commit()
-            raise HTTPException(status_code=409, detail="policy requires explicit human approval before capability issuance")
+            raise HTTPException(status_code=409, detail="정책상 capability 발급 전에 명시적인 사람 승인이 필요합니다.")
 
     actor_type = change.actor_type
     actor_id = change.actor_id
@@ -155,7 +155,7 @@ def issue_execution_capability(
         event_type="CAPABILITY_ISSUED",
         actor_type="human" if decision.decision == "ASK" else "system",
         actor_id=issued_by if decision.decision == "ASK" else "policy-engine",
-        summary=f"Scoped {action} capability issued to {actor_type}:{actor_id}",
+        summary=f"Scoped {action} capability 발급 대상: {actor_type}:{actor_id}",
         details={
             "capability_id": jti,
             "policy_decision": decision.decision,
@@ -181,7 +181,7 @@ def execute_agent_epoch(
 ) -> tuple[ExecutionReceipt, list[dict[str, str]]]:
     change = db.query(ChangeRequest).filter(ChangeRequest.epoch_id == epoch.id).one_or_none()
     if change is None or change.actor_type != "ai_agent":
-        raise HTTPException(status_code=409, detail="epoch is not an AI-agent-originated change")
+        raise HTTPException(status_code=409, detail="이 epoch는 AI Agent가 시작한 변경이 아닙니다.")
     scope = CapabilityScope(
         epoch_id=epoch.id,
         actor_type=change.actor_type,
@@ -198,12 +198,12 @@ def execute_agent_epoch(
     grant = db.get(CapabilityGrant, claims["jti"])
     now = datetime.now(timezone.utc)
     if grant is None or grant.epoch_id != epoch.id or grant.revoked_at is not None:
-        raise HTTPException(status_code=403, detail="capability grant is not active")
+        raise HTTPException(status_code=403, detail="capability grant가 활성 상태가 아닙니다.")
     expires = grant.expires_at
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
     if expires <= now:
-        raise HTTPException(status_code=403, detail="capability grant expired")
+        raise HTTPException(status_code=403, detail="capability grant가 만료되었습니다.")
     decision = evaluate_policy(
         actor_type=change.actor_type,
         action=change.action,
@@ -244,7 +244,7 @@ def sync_executor_observation(identity: dict[str, str]) -> None:
     try:
         executor_client().observe(identity)
     except ExecutorBoundaryError as exc:
-        raise HTTPException(status_code=502, detail="executor observation unavailable") from exc
+        raise HTTPException(status_code=502, detail="executor 관찰 기능을 사용할 수 없습니다.") from exc
 
 
 def execute_epoch(
@@ -253,7 +253,7 @@ def execute_epoch(
     idempotency_key: str,
     execution_context: dict | None = None,
 ) -> tuple[ExecutionReceipt, list[dict[str, str]]]:
-    # PostgreSQL uses this row lock to serialize execution attempts per epoch.
+    # PostgreSQL row lock으로 epoch별 실행 시도를 직렬화합니다.
     locked = db.execute(
         select(DeploymentEpoch).where(DeploymentEpoch.id == epoch.id).with_for_update()
     ).scalar_one()
@@ -269,17 +269,17 @@ def execute_epoch(
         and execution_context.get("policy_decision") == "ALLOW"
     )
     if locked.state != "APPROVED" and not (policy_allows_without_approval and locked.state == "DRAFT"):
-        raise HTTPException(status_code=409, detail=f"epoch is not executable from state {locked.state}")
+        raise HTTPException(status_code=409, detail=f"현재 상태에서는 epoch를 실행할 수 없습니다: {locked.state}")
     approval = db.query(Approval).filter(Approval.epoch_id == locked.id).one_or_none()
     if not policy_allows_without_approval:
         if approval is None or approval.approved_fingerprint != locked.fingerprint:
-            raise HTTPException(status_code=409, detail="epoch has no valid approval bound to its current fingerprint")
+            raise HTTPException(status_code=409, detail="현재 fingerprint에 연결된 유효한 승인이 없습니다.")
     live = db.query(LiveTarget).filter(
         LiveTarget.project == locked.project,
         LiveTarget.environment == locked.environment,
     ).one_or_none()
     if live is None:
-        raise HTTPException(status_code=409, detail="live target has not been observed")
+        raise HTTPException(status_code=409, detail="live target이 아직 관찰되지 않았습니다.")
     expected = epoch_identity(locked)
     observed = {
         "project": live.project,
@@ -291,7 +291,7 @@ def execute_epoch(
     try:
         result = executor_client().execute(expected, observed, execution_context)
     except ExecutorBoundaryError as exc:
-        raise HTTPException(status_code=502, detail="executor boundary unavailable") from exc
+        raise HTTPException(status_code=502, detail="executor 실행 경계를 사용할 수 없습니다.") from exc
     receipt = ExecutionReceipt(
         epoch_id=locked.id,
         outcome=result.outcome,
@@ -336,7 +336,7 @@ async def save_evidence(db: Session, epoch: DeploymentEpoch, kind: str, upload: 
     safe_name = original_name[:180] or "evidence.bin"
     content = await upload.read(settings.max_upload_bytes + 1)
     if len(content) > settings.max_upload_bytes:
-        raise HTTPException(status_code=413, detail="evidence file too large")
+        raise HTTPException(status_code=413, detail="evidence 파일이 너무 큽니다.")
     sha = hashlib.sha256(content).hexdigest()
     path = target_dir / f"{sha[:12]}-{safe_name}"
     await asyncio.to_thread(path.write_bytes, content)
@@ -356,7 +356,7 @@ async def save_evidence(db: Session, epoch: DeploymentEpoch, kind: str, upload: 
         event_type="EVIDENCE_ATTACHED",
         actor_type="service",
         actor_id="fastapi-orchestrator",
-        summary=f"Evidence attached: {safe_name}",
+        summary=f"Evidence 첨부: {safe_name}",
         details={"kind": kind, "sha256": sha, "size_bytes": len(content)},
     )
     try:

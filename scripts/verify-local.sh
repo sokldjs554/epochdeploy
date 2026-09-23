@@ -10,7 +10,7 @@ EXECUTOR_SECRET='verify-executor-secret'
 python -m compileall -q orchestrator
 node --check orchestrator/app/static/app.js
 if [[ -n "$(gofmt -l executor)" ]]; then
-  echo "gofmt required" >&2
+  echo "gofmt 적용이 필요합니다." >&2
   gofmt -l executor >&2
   exit 1
 fi
@@ -24,10 +24,10 @@ from pathlib import Path
 import app
 import app.main
 assert (Path(app.__file__).parent / "static" / "index.html").exists()
-print("python package install: PASS")
+print("Python 패키지 설치: PASS")
 PY_PACKAGE
 
-# Never let a stale process satisfy this run's health checks.
+# 오래된 프로세스가 이번 실행의 health check를 대신 통과하지 못하게 합니다.
 python - "$EXECUTOR_PORT" "$API_PORT" <<'PY'
 import socket, sys
 for raw in sys.argv[1:]:
@@ -35,7 +35,7 @@ for raw in sys.argv[1:]:
     with socket.socket() as s:
         s.settimeout(.2)
         if s.connect_ex(('127.0.0.1', port)) == 0:
-            raise SystemExit(f"verification port already in use: {port}")
+            raise SystemExit(f"검증용 포트가 이미 사용 중입니다: {port}")
 PY
 
 (cd executor && go build -o /tmp/epochdeploy-executor ./cmd/server)
@@ -75,15 +75,15 @@ UNSIGNED_STATUS=$(curl -sS -o /tmp/epochdeploy-unsigned.json -w '%{http_code}' \
   -d '{"expected":{},"observed":{}}' "http://127.0.0.1:$EXECUTOR_PORT/v1/execute")
 [[ "$UNSIGNED_STATUS" == "401" ]]
 
-curl -fsS "http://127.0.0.1:$API_PORT/" | grep -q 'EpochDeploy Control Plane'
+curl -fsS "http://127.0.0.1:$API_PORT/" | grep -q 'EpochDeploy 제어 플레인'
 curl -fsS "http://127.0.0.1:$API_PORT/static/app.js" -o /tmp/epochdeploy-app.js
 node --check /tmp/epochdeploy-app.js
 
 for round in 1 2 3; do
-  echo "smoke round $round"
+  echo "스모크 테스트 반복 $round"
   BASE="http://127.0.0.1:$API_PORT" bash scripts/smoke.sh
 done
 
 kill -0 "$GO_PID"
 kill -0 "$API_PID"
-echo "local verification: PASS"
+echo "로컬 전체 검증: PASS"

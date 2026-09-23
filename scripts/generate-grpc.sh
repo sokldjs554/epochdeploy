@@ -33,4 +33,4 @@ path.write_text(text)
 PY
 
 gofmt -w executor-gin/gen
-echo "gRPC code generation: PASS"
+echo "gRPC 코드 생성: PASS"

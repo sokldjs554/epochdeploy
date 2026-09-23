@@ -22,7 +22,7 @@ def agent_payload(*, env, action, pipeline_id):
         "config_hash": "cfg:2e9d35a12347bd18bb3c9dcb7a4c8701",
         "pipeline_id": pipeline_id,
         "change_request_id": f"ISSUE-{pipeline_id}",
-        "reason": "Policy simulation for an agent-originated release request",
+        "reason": "Agent가 시작한 release 요청의 정책 시뮬레이션",
         "actor_id": "release-agent-01",
         "action": action,
     }
@@ -121,7 +121,7 @@ def test_ask_policy_requires_human_approval(client, operator, approver):
         json={"ttl_seconds": 300},
     )
     assert blocked.status_code == 409
-    assert "policy requires explicit human approval" in blocked.json()["detail"]
+    assert "명시적인 사람 승인" in blocked.json()["detail"]
 
     approved = client.post(f"/api/epochs/{epoch['id']}/approve", headers=approver)
     assert approved.status_code == 200
@@ -144,7 +144,7 @@ def test_deny_policy_never_issues_capability(client, operator, approver):
         json={"ttl_seconds": 300},
     )
     assert response.status_code == 403
-    assert "not delegable" in response.json()["detail"]
+    assert "위임할 수 없습니다" in response.json()["detail"]
 
     passport = client.get(f"/api/epochs/{epoch['id']}/passport", headers=operator).json()
     policy_events = [event for event in passport["timeline"] if event["event_type"] == "POLICY_EVALUATED"]

@@ -38,7 +38,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 def _demo_only() -> None:
     if not settings.demo_mode:
-        raise HTTPException(status_code=404, detail="not found")
+        raise HTTPException(status_code=404, detail="찾을 수 없습니다.")
 
 
 @app.middleware("http")
@@ -79,7 +79,7 @@ def healthz():
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == payload.username).one_or_none()
     if user is None or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="invalid credentials")
+        raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
     return TokenResponse(access_token=issue_token(user), role=user.role)
 
 
@@ -280,25 +280,25 @@ def integration_status(user: User = Depends(current_user)):
     database_backend = "postgresql" if settings.database_url.startswith("postgresql") else "sqlite"
     return {
         "gitlab": {
-            "status": "configured" if bool(settings.gitlab_webhook_token) else "unconfigured",
+            "status": "설정됨" if bool(settings.gitlab_webhook_token) else "미설정",
             "event": "Pipeline Hook",
-            "binding": "pipeline id + immutable commit SHA",
+            "binding": "pipeline id + immutable commit SHA 결합",
         },
         "executor": {
-            "status": "configured",
+            "status": "설정됨",
             "mode": settings.executor_mode,
             "implementation": executor_implementation(),
             "transport": executor_transport(),
-            "authentication": "HMAC-SHA256 signed request metadata" if settings.executor_mode == "grpc" else "HMAC-SHA256 signed request body",
-            "target_observation": "executor-owned",
+            "authentication": "HMAC-SHA256 서명 metadata" if settings.executor_mode == "grpc" else "HMAC-SHA256 서명 request body",
+            "target_observation": "executor가 직접 관리",
         },
         "database": {
-            "status": "configured",
+            "status": "설정됨",
             "backend": database_backend,
-            "role": "epochs + approvals + evidence + receipts + outbox",
+            "role": "epoch + approval + evidence + receipt + outbox",
         },
         "grpc": {
-            "status": "active" if settings.executor_mode == "grpc" else "implemented",
+            "status": "활성" if settings.executor_mode == "grpc" else "구현됨",
             "contract": "proto/executor.proto",
             "runtime_transport": "gRPC" if settings.executor_mode == "grpc" else executor_transport(),
         },
@@ -326,12 +326,12 @@ async def gitlab_webhook(
     db: Session = Depends(get_db),
 ):
     if x_gitlab_token is None or not hmac.compare_digest(x_gitlab_token, settings.gitlab_webhook_token):
-        raise HTTPException(status_code=401, detail="invalid gitlab webhook token")
+        raise HTTPException(status_code=401, detail="GitLab webhook token이 유효하지 않습니다.")
     raw_buffer = bytearray()
     async for chunk in request.stream():
         raw_buffer.extend(chunk)
         if len(raw_buffer) > settings.max_webhook_bytes:
-            raise HTTPException(status_code=413, detail="gitlab webhook payload too large")
+            raise HTTPException(status_code=413, detail="GitLab webhook payload가 너무 큽니다.")
     raw = bytes(raw_buffer)
     payload_hash = hashlib.sha256(raw).hexdigest()
     if db.query(WebhookEvent).filter(WebhookEvent.payload_hash == payload_hash).one_or_none():
@@ -339,7 +339,7 @@ async def gitlab_webhook(
     try:
         payload = json.loads(raw or b"{}")
     except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="invalid json")
+        raise HTTPException(status_code=400, detail="JSON 형식이 올바르지 않습니다.")
     event = WebhookEvent(provider="gitlab", event_type=x_gitlab_event or "unknown", external_id=str(payload.get("object_attributes", {}).get("id", "")), payload_hash=payload_hash)
     db.add(event)
     try:
@@ -363,7 +363,7 @@ async def gitlab_webhook(
                     event_type="PIPELINE_VERIFIED",
                     actor_type="system",
                     actor_id="gitlab",
-                    summary="GitLab pipeline evidence matched the immutable commit SHA",
+                    summary="GitLab pipeline evidence가 immutable commit SHA와 일치했습니다.",
                     details={"pipeline_id": pipeline_id, "commit_sha": pipeline_sha, "status": status},
                 )
             elif row.pipeline_status == "sha_mismatch" and previous != "sha_mismatch":
@@ -373,7 +373,7 @@ async def gitlab_webhook(
                     event_type="PIPELINE_REJECTED",
                     actor_type="system",
                     actor_id="gitlab",
-                    summary="GitLab pipeline SHA did not match the deployment epoch",
+                    summary="GitLab pipeline SHA가 deployment epoch와 일치하지 않았습니다.",
                     details={"pipeline_id": pipeline_id, "observed_sha": pipeline_sha, "expected_sha": row.commit_sha},
                 )
     db.commit()
@@ -399,7 +399,7 @@ def demo_bootstrap(user: User = Depends(require_role("admin")), db: Session = De
         db,
         epoch=epoch,
         external_ref="ISSUE-184",
-        reason="Payment retry policy caused intermittent production timeouts",
+        reason="결제 재시도 정책 변경 이후 운영 환경에서 간헐적인 timeout이 발생했습니다.",
         actor_type="ai_agent",
         actor_id="release-agent-01",
         requested_by=user.username,
@@ -411,7 +411,7 @@ def demo_bootstrap(user: User = Depends(require_role("admin")), db: Session = De
         event_type="PIPELINE_VERIFIED",
         actor_type="system",
         actor_id="gitlab",
-        summary="Demo GitLab pipeline evidence verified",
+        summary="데모 GitLab pipeline evidence 검증 완료",
         details={"pipeline_id": epoch.pipeline_id, "commit_sha": epoch.commit_sha, "status": "success"},
     )
     db.commit()
@@ -425,10 +425,10 @@ def demo_drift(epoch_id: str, payload: DriftRequest, user: User = Depends(requir
     _demo_only()
     epoch = _epoch_or_404(db, epoch_id)
     if payload.field not in {"commit_sha", "artifact_digest", "config_hash"}:
-        raise HTTPException(status_code=400, detail="unsupported drift field")
+        raise HTTPException(status_code=400, detail="지원하지 않는 drift field입니다.")
     target = db.query(LiveTarget).filter(LiveTarget.project == epoch.project, LiveTarget.environment == epoch.environment).one_or_none()
     if target is None:
-        raise HTTPException(status_code=409, detail="target missing")
+        raise HTTPException(status_code=409, detail="live target이 없습니다.")
     setattr(target, payload.field, payload.value)
     db.commit()
     observed = {
@@ -442,7 +442,7 @@ def demo_drift(epoch_id: str, payload: DriftRequest, user: User = Depends(requir
 def _epoch_or_404(db: Session, epoch_id: str) -> DeploymentEpoch:
     row = db.get(DeploymentEpoch, epoch_id)
     if row is None:
-        raise HTTPException(status_code=404, detail="epoch not found")
+        raise HTTPException(status_code=404, detail="epoch를 찾을 수 없습니다.")
     return row
 
 

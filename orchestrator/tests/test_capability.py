@@ -10,7 +10,7 @@ def payload(pipeline_id="7421"):
         "config_hash": "cfg:2e9d35a12347bd18bb3c9dcb7a4c8701",
         "pipeline_id": pipeline_id,
         "change_request_id": f"ISSUE-{pipeline_id}",
-        "reason": "Agent requested a production deployment for a verified release change",
+        "reason": "검증된 release 변경을 운영 환경에 배포하도록 Agent가 요청했습니다.",
         "actor_id": "release-agent-01",
         "action": "deploy",
     }
@@ -150,6 +150,6 @@ def test_expired_capability_fails_verification():
     try:
         verify_capability(token, scope)
     except CapabilityError as exc:
-        assert "expired" in str(exc)
+        assert "만료" in str(exc)
     else:
-        raise AssertionError("expired capability unexpectedly verified")
+        raise AssertionError("만료된 capability가 검증을 통과했습니다.")
