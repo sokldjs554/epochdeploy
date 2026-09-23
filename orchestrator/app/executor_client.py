@@ -124,7 +124,7 @@ class HTTPExecutorClient:
                 response.raise_for_status()
                 return response.json()
         except (httpx.HTTPError, ValueError, KeyError) as exc:
-            raise ExecutorBoundaryError("executor boundary request failed") from exc
+            raise ExecutorBoundaryError("executor 경계 요청에 실패했습니다.") from exc
 
     def observe(self, identity: dict[str, str]) -> None:
         self._signed_post("/v1/targets/observe", {"identity": identity})
@@ -158,7 +158,7 @@ class GRPCExecutorClient:
                 )
         except grpc.RpcError as exc:
             raise ExecutorBoundaryError(
-                f"gRPC observe failed: {exc.code().name}: {exc.details()}"
+                f"gRPC 관찰 요청 실패: {exc.code().name}: {exc.details()}"
             ) from exc
 
     def execute(self, expected: dict[str, str], observed: dict[str, str], context: dict | None = None) -> ExecutorResult:
@@ -178,7 +178,7 @@ class GRPCExecutorClient:
                 )
         except grpc.RpcError as exc:
             raise ExecutorBoundaryError(
-                f"gRPC execute failed: {exc.code().name}: {exc.details()}"
+                f"gRPC 실행 요청 실패: {exc.code().name}: {exc.details()}"
             ) from exc
         return ExecutorResult(
             outcome=response.outcome,
