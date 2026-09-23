@@ -1,4 +1,4 @@
-name: Remote Verification
+name: 원격 검증
 
 on:
   pull_request:
@@ -25,20 +25,20 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: '1.23.x'
-      - name: Install protobuf generators
+      - name: protobuf 생성기 설치
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
           python -m pip install grpcio-tools
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.9
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-      - name: Generate Python and Go gRPC bindings
+      - name: Python/Go gRPC 바인딩 생성
         run: |
           bash scripts/generate-grpc.sh
           (cd executor-gin && go mod tidy)
-      - name: Verify generated bindings and module lock are synchronized
+      - name: 생성 바인딩과 모듈 lock 동기화 확인
         run: git diff --exit-code -- executor-gin/gen orchestrator/app/gen executor-gin/go.mod executor-gin/go.sum
-      - name: Upload generated bindings
+      - name: 생성 바인딩 artifact 업로드
         uses: actions/upload-artifact@v7
         with:
           name: epochdeploy-grpc-generated
@@ -59,23 +59,23 @@ jobs:
         with:
           go-version: '1.23.x'
           cache-dependency-path: executor/go.mod
-      - name: Install Python project
+      - name: Python 프로젝트 설치
         run: python -m pip install '.[test,postgres]'
-      - name: Python tests
+      - name: Python 테스트
         run: python -m pytest
-      - name: Python package build
+      - name: Python 패키지 빌드
         run: python -m pip install build && python -m build
-      - name: Go vet and race tests
+      - name: Go vet/race 테스트
         working-directory: executor
         run: go vet ./... && go test -race -count=1 ./...
-      - name: Gin executor lock, vet and race tests
+      - name: Gin executor lock/vet/race 테스트
         working-directory: executor-gin
         run: |
           go mod tidy
           git diff --exit-code go.mod go.sum
           go vet ./...
           go test -race -count=1 ./...
-      - name: Static JavaScript syntax
+      - name: JavaScript 정적 문법 검사
         run: node --check orchestrator/app/static/app.js
 
   compose-postgres-smoke:
@@ -86,42 +86,42 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - name: Validate Compose model
+      - name: Compose 모델 검증
         run: docker compose config --quiet
-      - name: Build and start PostgreSQL + services
+      - name: PostgreSQL 및 서비스 빌드/기동
         run: docker compose up -d --build
-      - name: Wait for orchestrator
+      - name: 오케스트레이터 기동 대기
         run: ./scripts/wait-for-http.sh http://127.0.0.1:8000/healthz 90
-      - name: Verify PostgreSQL runtime
+      - name: PostgreSQL runtime 검증
         run: |
           docker compose exec -T postgres pg_isready -U epochdeploy -d epochdeploy
           docker compose exec -T postgres psql -U epochdeploy -d epochdeploy -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) AS deployment_epoch_table FROM information_schema.tables WHERE table_schema='public' AND table_name='deployment_epochs';"
-      - name: Repeated two-service smoke
+      - name: 두 서비스 smoke 반복 검증
         run: |
           for round in 1 2 3; do
-            echo "remote compose smoke round ${round}"
+            echo "원격 Compose smoke 반복 ${round}"
             BASE=http://127.0.0.1:8000 bash scripts/smoke.sh
           done
-      - name: Install Chromium E2E runtime
+      - name: Chromium E2E runtime 설치
         run: |
           python -m pip install '.[browser]'
           python -m playwright install --with-deps chromium
-      - name: Browser E2E across all control-plane views
+      - name: 전체 제어 플레인 브라우저 E2E
         run: |
           EPOCHDEPLOY_BROWSER_BASE=http://127.0.0.1:8000 \
           EPOCHDEPLOY_BROWSER_OUT=/tmp/epochdeploy-browser-e2e \
           EPOCHDEPLOY_EXPECT_EXECUTOR_IMPLEMENTATION=gin \
           python scripts/browser-e2e.py
-      - name: Upload browser E2E screenshots
+      - name: 브라우저 E2E 스크린샷 업로드
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: epochdeploy-browser-e2e
           path: /tmp/epochdeploy-browser-e2e
           if-no-files-found: ignore
-      - name: Compose logs
+      - name: Compose 로그 수집
         if: always()
         run: docker compose logs --no-color
-      - name: Tear down
+      - name: 서비스 종료 및 정리
         if: always()
         run: docker compose down -v
