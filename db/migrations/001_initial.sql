@@ -1,4 +1,4 @@
--- PostgreSQL 16 reference schema. SQLAlchemy creates the same logical model in local mode.
+-- PostgreSQL 16 기준 스키마입니다. 로컬 모드에서는 SQLAlchemy가 동일한 논리 모델을 생성합니다.
 CREATE TABLE IF NOT EXISTS users (
   id BIGSERIAL PRIMARY KEY,
   username VARCHAR(80) NOT NULL UNIQUE,
