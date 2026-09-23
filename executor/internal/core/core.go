@@ -78,7 +78,7 @@ func Compare(expected, observed Identity) Result {
 			}
 			fields += d.Field
 		}
-		return Result{Outcome: "DENIED_STALE", ObservedFingerprint: observedFP, Reason: fmt.Sprintf("execution target changed after approval: %s", fields), Differences: diffs}
+		return Result{Outcome: "DENIED_STALE", ObservedFingerprint: observedFP, Reason: fmt.Sprintf("승인 이후 실행 대상이 변경되었습니다: %s", fields), Differences: diffs}
 	}
-	return Result{Outcome: "EXECUTED", ObservedFingerprint: observedFP, Reason: "approved deployment identity matches live target", Differences: diffs}
+	return Result{Outcome: "EXECUTED", ObservedFingerprint: observedFP, Reason: "승인된 deployment identity와 live target이 일치합니다.", Differences: diffs}
 }
