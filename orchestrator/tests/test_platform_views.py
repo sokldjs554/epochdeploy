@@ -55,14 +55,14 @@ def test_integration_status_is_explicit_without_exposing_secrets(client, operato
     response = client.get("/api/system/integrations", headers=operator)
     assert response.status_code == 200
     body = response.json()
-    assert body["gitlab"]["status"] == "configured"
-    assert body["gitlab"]["binding"] == "pipeline id + immutable commit SHA"
+    assert body["gitlab"]["status"] == "설정됨"
+    assert body["gitlab"]["binding"] == "pipeline id + immutable commit SHA 결합"
     assert body["executor"]["implementation"] == "local"
     assert body["executor"]["transport"] == "local"
-    assert body["executor"]["authentication"] == "HMAC-SHA256 signed request body"
-    assert body["executor"]["target_observation"] == "executor-owned"
+    assert body["executor"]["authentication"] == "HMAC-SHA256 서명 request body"
+    assert body["executor"]["target_observation"] == "executor가 직접 관리"
     assert body["database"]["backend"] == "sqlite"
-    assert body["grpc"]["status"] == "implemented"
+    assert body["grpc"]["status"] == "구현됨"
     assert body["grpc"]["runtime_transport"] == "local"
     serialized = response.text.lower()
     assert "test-gitlab-token" not in serialized
