@@ -152,11 +152,11 @@ def main() -> None:
         # 새 epoch에서 stale approval이 차단되고 diff가 안전하게 렌더링되는지 확인합니다.
         page.locator('.nav[data-view="release"]').click()
         page.locator("#boot").click()
-        expect_text(page, "#result", "created")
+        expect_text(page, "#result", "생성 완료")
         page.locator("#approve").click()
         expect_text(page, "#metric-state", "APPROVED")
         page.locator("#capability").click()
-        expect_text(page, "#result", "Capability issued to ai_agent:release-agent-01")
+        expect_text(page, "#result", "Capability 발급 완료: ai_agent:release-agent-01")
         page.locator("#drift").click()
         expect_text(page, "#metric-match", "DRIFTED")
         page.locator("#execute").click()
