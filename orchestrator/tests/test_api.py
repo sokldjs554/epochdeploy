@@ -168,4 +168,4 @@ def test_executor_observation_failure_maps_to_502(client, operator, monkeypatch)
     ident = {k: epoch_payload()[k] for k in ('project','environment','commit_sha','artifact_digest','config_hash')}
     response = client.post('/api/targets/observe', json=ident, headers=operator)
     assert response.status_code == 502
-    assert response.json()['detail'] == 'executor observation unavailable'
+    assert response.json()['detail'] == 'executor 관찰 기능을 사용할 수 없습니다.'
