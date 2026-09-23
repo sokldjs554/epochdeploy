@@ -7,7 +7,7 @@ def agent_payload():
         "config_hash": "cfg:2e9d35a12347bd18bb3c9dcb7a4c8701",
         "pipeline_id": "7421",
         "change_request_id": "ISSUE-184",
-        "reason": "Payment retry policy caused intermittent production timeouts",
+        "reason": "결제 재시도 정책 변경 이후 운영 환경에서 간헐적인 timeout이 발생했습니다.",
         "actor_id": "release-agent-01",
         "action": "deploy",
     }
