@@ -48,9 +48,9 @@ def main() -> None:
         except PlaywrightError as exc:
             if "ERR_BLOCKED_BY_ADMINISTRATOR" not in str(exc):
                 raise
-            # Managed Chromium in some CI/sandbox environments blocks top-level
-            # localhost navigation. Keep the actual UI source and actual APIs,
-            # but load the document in-memory and proxy only fetch/XHR traffic.
+            # 일부 CI/샌드박스 환경의 관리형 Chromium은 localhost 최상위 탐색을 차단합니다.
+            # 실제 UI 소스와 API는 그대로 사용하고, 문서만 메모리에 로드한 뒤
+            # fetch/XHR 트래픽만 실제 FastAPI로 프록시합니다.
             console_errors.clear()
             page_errors.clear()
             failed_requests.clear()
@@ -71,12 +71,12 @@ def main() -> None:
             html = html.replace('<link rel="stylesheet" href="/static/styles.css" />', f"<style>{css}</style>")
             html = html.replace('<script src="/static/app.js"></script>', f"<script>{js}</script>")
             page.set_content(html, wait_until="networkidle")
-        expect_text(page, "h1", "Approval is not enough")
+        expect_text(page, "h1", "승인만으로는 충분하지 않습니다")
         page.screenshot(path=OUT / "01-release-initial.png", full_page=True)
 
-        # Policy dry-run uses the same engine that gates capability issuance.
+        # Policy dry-run은 실제 capability 발급을 제어하는 동일한 엔진을 사용합니다.
         page.locator('.nav[data-view="policy"]').click()
-        expect_text(page, "h1", "Simulate authority before execution")
+        expect_text(page, "h1", "실행 전 Agent 권한을 시뮬레이션합니다")
         policy_buttons = page.locator(".policy-run")
         policy_buttons.nth(0).click()
         expect_text(page, "#policy-scenarios", "ALLOW · allow-agent-nonprod-write")
@@ -87,21 +87,21 @@ def main() -> None:
         page.screenshot(path=OUT / "02-policy-dry-run.png", full_page=True)
         page.locator('.nav[data-view="release"]').click()
 
-        # Happy execution path.
+        # 정상 실행 경로
         page.locator("#boot").click()
-        expect_text(page, "#result", "created")
+        expect_text(page, "#result", "생성 완료")
         page.locator("#approve").click()
         expect_text(page, "#metric-state", "APPROVED")
         page.locator("#capability").click()
-        expect_text(page, "#result", "Capability issued to ai_agent:release-agent-01")
+        expect_text(page, "#result", "Capability 발급 완료: ai_agent:release-agent-01")
         page.locator("#execute").click()
         expect_text(page, "#result", "EXECUTED")
         expect_text(page, "#metric-match", "MATCH")
         page.screenshot(path=OUT / "03-release-happy.png", full_page=True)
 
-        # Agent governance passport links why/who to approval and execution.
+        # Agent 거버넌스 패스포트에서 WHY/WHO를 승인·실행 기록과 연결합니다.
         page.locator('.nav[data-view="passport"]').click()
-        expect_text(page, "h1", "Know why the change exists")
+        expect_text(page, "h1", "변경이 왜 필요한지 추적합니다")
         expect_text(page, "#passport-summary", "ISSUE-184")
         expect_text(page, "#passport-summary", "release-agent-01")
         expect_text(page, "#passport-summary", "EXECUTED")
@@ -113,9 +113,9 @@ def main() -> None:
         expect_text(page, "#passport-timeline", "EXECUTED")
         page.screenshot(path=OUT / "04-change-passport-happy.png", full_page=True)
 
-        # Evidence navigation + real multipart upload + ledger refresh.
+        # Evidence 화면에서 실제 multipart 업로드 후 ledger를 확인합니다.
         page.locator('.nav[data-view="evidence"]').click()
-        expect_text(page, "h1", "Attach evidence")
+        expect_text(page, "h1", "Epoch에 evidence를 연결합니다")
         page.locator("#evidence-kind").fill("provenance")
         page.locator("#evidence-file").set_input_files({
             "name": "build-provenance.txt",
@@ -123,25 +123,25 @@ def main() -> None:
             "buffer": b"builder=github-actions\ncommit=8f375e7\nattested=true\n",
         })
         page.locator("#evidence-upload").click()
-        expect_text(page, "#evidence-result", "Stored build-provenance.txt")
+        expect_text(page, "#evidence-result", "저장 완료: build-provenance.txt")
         expect_text(page, "#evidence-list", "build-provenance.txt")
         expect_text(page, "#evidence-list", "sha256")
         page.screenshot(path=OUT / "05-evidence-ledger.png", full_page=True)
 
-        # Existing receipt is discoverable from another view.
+        # 다른 화면에서도 저장된 receipt를 조회할 수 있는지 확인합니다.
         page.locator('.nav[data-view="receipts"]').click()
-        expect_text(page, "h1", "A deployment decision needs a receipt")
+        expect_text(page, "h1", "배포 결정에는 재현 가능한 receipt가 필요합니다")
         expect_text(page, "#receipts-list", "EXECUTED")
         expect_text(page, "#receipts-list", "approved deployment identity matches live target")
         page.screenshot(path=OUT / "06-receipts-happy.png", full_page=True)
 
-        # Integration view must show the production Compose gRPC runtime honestly.
+        # Integrations 화면이 production Compose의 실제 gRPC runtime을 그대로 표시하는지 확인합니다.
         page.locator('.nav[data-view="integrations"]').click()
-        expect_text(page, "h1", "Make every trust boundary visible")
-        expect_text(page, "#integration-cards", "GitLab Pipeline Hook")
-        expect_text(page, "#integration-cards", "Go Executor")
-        expect_text(page, "#integration-cards", "Database")
-        expect_text(page, "#integration-cards", "gRPC Runtime")
+        expect_text(page, "h1", "모든 신뢰 경계를 보이게 만듭니다")
+        expect_text(page, "#integration-cards", "GitLab 파이프라인 훅")
+        expect_text(page, "#integration-cards", "Go 실행기")
+        expect_text(page, "#integration-cards", "데이터베이스")
+        expect_text(page, "#integration-cards", "gRPC 런타임")
         expect_text(page, "#integration-cards", "active")
         expect_text(page, "#integration-cards", "grpc")
         expected_executor = os.getenv("EPOCHDEPLOY_EXPECT_EXECUTOR_IMPLEMENTATION")
@@ -149,7 +149,7 @@ def main() -> None:
             expect_text(page, "#integration-cards", expected_executor)
         page.screenshot(path=OUT / "07-integrations.png", full_page=True)
 
-        # Fresh epoch: stale approval is blocked and the diff is rendered safely.
+        # 새 epoch에서 stale approval이 차단되고 diff가 안전하게 렌더링되는지 확인합니다.
         page.locator('.nav[data-view="release"]').click()
         page.locator("#boot").click()
         expect_text(page, "#result", "created")
@@ -178,12 +178,12 @@ def main() -> None:
 
         browser.close()
 
-    assert not console_errors, f"browser console errors: {console_errors}"
-    assert not page_errors, f"page errors: {page_errors}"
-    assert not failed_requests, f"failed requests: {failed_requests}"
-    assert not bad_responses, f"HTTP error responses: {bad_responses}"
-    print("browser e2e: PASS")
-    print(f"screenshots: {OUT}")
+    assert not console_errors, f"브라우저 콘솔 오류: {console_errors}"
+    assert not page_errors, f"페이지 오류: {page_errors}"
+    assert not failed_requests, f"실패한 요청: {failed_requests}"
+    assert not bad_responses, f"HTTP 오류 응답: {bad_responses}"
+    print("브라우저 E2E: PASS")
+    print(f"스크린샷: {OUT}")
 
 
 if __name__ == "__main__":
