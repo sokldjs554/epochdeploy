@@ -132,7 +132,7 @@ def main() -> None:
         page.locator('.nav[data-view="receipts"]').click()
         expect_text(page, "h1", "배포 결정에는 재현 가능한 receipt가 필요합니다")
         expect_text(page, "#receipts-list", "EXECUTED")
-        expect_text(page, "#receipts-list", "approved deployment identity matches live target")
+        expect_text(page, "#receipts-list", "승인된 deployment identity와 live target이 일치합니다.")
         page.screenshot(path=OUT / "06-receipts-happy.png", full_page=True)
 
         # Integrations 화면이 production Compose의 실제 gRPC runtime을 그대로 표시하는지 확인합니다.
@@ -142,7 +142,7 @@ def main() -> None:
         expect_text(page, "#integration-cards", "Go 실행기")
         expect_text(page, "#integration-cards", "데이터베이스")
         expect_text(page, "#integration-cards", "gRPC 런타임")
-        expect_text(page, "#integration-cards", "active")
+        expect_text(page, "#integration-cards", "활성")
         expect_text(page, "#integration-cards", "grpc")
         expected_executor = os.getenv("EPOCHDEPLOY_EXPECT_EXECUTOR_IMPLEMENTATION")
         if expected_executor:
