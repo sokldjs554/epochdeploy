@@ -39,7 +39,7 @@ func startGRPCServer(port, secret, capabilitySecret string, store *boundary.Targ
 	server := newGRPCServer(secret, capabilitySecret, store)
 	go func() {
 		if err := server.Serve(listener); err != nil {
-			log.Printf("gRPC executor server stopped: %v", err)
+			log.Printf("gRPC executor server 중지: %v", err)
 		}
 	}()
 	return server, nil
@@ -57,20 +57,20 @@ func grpcAuthInterceptor(secret string) grpc.UnaryServerInterceptor {
 		}
 		md, ok := metadata.FromIncomingContext(ctx)
 		if !ok {
-			return nil, status.Error(codes.Unauthenticated, "missing executor metadata")
+			return nil, status.Error(codes.Unauthenticated, "executor metadata가 없습니다.")
 		}
 		timestamps := md.Get("x-epochdeploy-timestamp")
 		signatures := md.Get("x-epochdeploy-signature")
 		if len(timestamps) != 1 || len(signatures) != 1 {
-			return nil, status.Error(codes.Unauthenticated, "missing executor signature")
+			return nil, status.Error(codes.Unauthenticated, "executor 서명이 없습니다.")
 		}
 		message, ok := req.(proto.Message)
 		if !ok {
-			return nil, status.Error(codes.Internal, "request is not a protobuf message")
+			return nil, status.Error(codes.Internal, "요청이 protobuf message가 아닙니다.")
 		}
 		payload, err := proto.MarshalOptions{Deterministic: true}.Marshal(message)
 		if err != nil {
-			return nil, status.Error(codes.Internal, "failed to serialize request")
+			return nil, status.Error(codes.Internal, "요청 직렬화에 실패했습니다.")
 		}
 		if !boundary.ValidRPCSignature(
 			secret,
@@ -80,7 +80,7 @@ func grpcAuthInterceptor(secret string) grpc.UnaryServerInterceptor {
 			signatures[0],
 			time.Now(),
 		) {
-			return nil, status.Error(codes.Unauthenticated, "invalid executor signature")
+			return nil, status.Error(codes.Unauthenticated, "executor 서명이 유효하지 않습니다.")
 		}
 		return handler(ctx, req)
 	}
@@ -103,7 +103,7 @@ func (s *grpcExecutorService) Observe(
 	req *executorv1.ObserveRequest,
 ) (*executorv1.ObserveResponse, error) {
 	if req.GetIdentity() == nil {
-		return nil, status.Error(codes.InvalidArgument, "identity is required")
+		return nil, status.Error(codes.InvalidArgument, "identity가 필요합니다.")
 	}
 	identity := identityFromProto(req.GetIdentity())
 	s.store.Put(identity)
@@ -117,7 +117,7 @@ func (s *grpcExecutorService) Execute(
 	req *executorv1.ExecuteRequest,
 ) (*executorv1.ExecuteResponse, error) {
 	if req.GetExpected() == nil {
-		return nil, status.Error(codes.InvalidArgument, "expected identity is required")
+		return nil, status.Error(codes.InvalidArgument, "expected identity가 필요합니다.")
 	}
 	expected := identityFromProto(req.GetExpected())
 	if ctx := req.GetContext(); ctx != nil {
@@ -140,7 +140,7 @@ func (s *grpcExecutorService) Execute(
 	}
 	observed, ok := s.store.Get(expected)
 	if !ok {
-		return nil, status.Error(codes.FailedPrecondition, "live target has not been observed by executor")
+		return nil, status.Error(codes.FailedPrecondition, "executor가 live target을 아직 관찰하지 않았습니다.")
 	}
 	result := core.Compare(expected, observed)
 	diffs := make([]*executorv1.Difference, 0, len(result.Differences))
