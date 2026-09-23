@@ -27,7 +27,7 @@ type observeRequest struct {
 func main() {
 	secret := os.Getenv("EPOCHDEPLOY_EXECUTOR_HMAC_SECRET")
 	if secret == "" {
-		log.Fatal("EPOCHDEPLOY_EXECUTOR_HMAC_SECRET is required")
+		log.Fatal("EPOCHDEPLOY_EXECUTOR_HMAC_SECRET 환경변수가 필요합니다.")
 	}
 	store := boundary.NewTargetStore()
 
@@ -40,7 +40,7 @@ func main() {
 	mux.HandleFunc("POST /v1/targets/observe", signedHandler(secret, func(w http.ResponseWriter, body []byte) {
 		var req observeRequest
 		if !boundary.DecodeOne(body, &req) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "요청 형식이 올바르지 않습니다."})
 			return
 		}
 		store.Put(req.Identity)
@@ -49,12 +49,12 @@ func main() {
 	mux.HandleFunc("POST /v1/execute", signedHandler(secret, func(w http.ResponseWriter, body []byte) {
 		var req executeRequest
 		if !boundary.DecodeOne(body, &req) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "요청 형식이 올바르지 않습니다."})
 			return
 		}
 		observed, ok := store.Get(req.Expected)
 		if !ok {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "live target has not been observed by executor"})
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "executor가 live target을 아직 관찰하지 않았습니다."})
 			return
 		}
 		writeJSON(w, http.StatusOK, core.Compare(req.Expected, observed))
@@ -80,11 +80,11 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
-			log.Printf("executor graceful shutdown failed: %v", err)
+			log.Printf("executor 정상 종료 실패: %v", err)
 		}
 	}()
 
-	log.Printf("epochdeploy stdlib executor listening on :%s", port)
+	log.Printf("epochdeploy stdlib executor 대기 중 :%s", port)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
@@ -94,11 +94,11 @@ func signedHandler(secret string, next func(http.ResponseWriter, []byte)) http.H
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "요청 형식이 올바르지 않습니다."})
 			return
 		}
 		if !boundary.ValidSignature(secret, r.Header.Get("X-EpochDeploy-Timestamp"), body, r.Header.Get("X-EpochDeploy-Signature"), time.Now()) {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid executor signature"})
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "executor 서명이 유효하지 않습니다."})
 			return
 		}
 		next(w, body)
