@@ -50,9 +50,9 @@ def verify_capability(token: str, expected: CapabilityScope) -> dict:
     try:
         claims = jwt.decode(token, settings.capability_secret, algorithms=["HS256"])
     except jwt.ExpiredSignatureError as exc:
-        raise CapabilityError("capability expired") from exc
+        raise CapabilityError("capability가 만료되었습니다.") from exc
     except jwt.PyJWTError as exc:
-        raise CapabilityError("invalid capability signature") from exc
+        raise CapabilityError("capability 서명이 유효하지 않습니다.") from exc
 
     expected_claims = {
         "typ": "epochdeploy-capability",
@@ -66,7 +66,7 @@ def verify_capability(token: str, expected: CapabilityScope) -> dict:
     }
     for key, value in expected_claims.items():
         if claims.get(key) != value:
-            raise CapabilityError(f"capability scope mismatch: {key}")
+            raise CapabilityError(f"capability scope가 일치하지 않습니다: {key}")
     if claims.get("ver") != 1 or not claims.get("jti"):
-        raise CapabilityError("unsupported capability token")
+        raise CapabilityError("지원하지 않는 capability token입니다.")
     return claims
