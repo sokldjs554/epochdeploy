@@ -1,123 +1,123 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>EpochDeploy Control Plane</title>
+  <title>EpochDeploy 제어 플레인</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
   <div class="shell">
     <aside class="sidebar">
-      <div class="brand"><span class="mark">E</span><div><b>EpochDeploy</b><small>AI-safe release control plane</small></div></div>
-      <nav aria-label="Control plane navigation">
-        <button class="nav active" data-view="release">Release Control</button>
-        <button class="nav" data-view="policy">Policy Simulator</button>
-        <button class="nav" data-view="passport">Change Passport</button>
-        <button class="nav" data-view="evidence">Evidence</button>
-        <button class="nav" data-view="receipts">Execution Receipts</button>
-        <button class="nav" data-view="integrations">Integrations</button>
+      <div class="brand"><span class="mark">E</span><div><b>EpochDeploy</b><small>AI 안전 배포 제어 플레인</small></div></div>
+      <nav aria-label="제어 플레인 메뉴">
+        <button class="nav active" data-view="release">배포 제어</button>
+        <button class="nav" data-view="policy">정책 시뮬레이터</button>
+        <button class="nav" data-view="passport">변경 패스포트</button>
+        <button class="nav" data-view="evidence">증거 파일</button>
+        <button class="nav" data-view="receipts">실행 영수증</button>
+        <button class="nav" data-view="integrations">연동 상태</button>
       </nav>
-      <div class="side-note"><span class="dot"></span> Go executor boundary<br><small>fail-closed verification enabled</small></div>
+      <div class="side-note"><span class="dot"></span> Go 실행 경계<br><small>fail-closed 검증 활성화</small></div>
     </aside>
     <main>
       <header>
-        <div><p id="page-eyebrow" class="eyebrow">PRODUCTION RELEASE / PAYMENTS-API</p><h1 id="page-title">Approval is not enough.<br><span>Re-verify what will actually run.</span></h1></div>
-        <div id="identity" class="identity">Not signed in</div>
+        <div><p id="page-eyebrow" class="eyebrow">운영 배포 / PAYMENTS-API</p><h1 id="page-title">승인만으로는 충분하지 않습니다.<br><span>실제로 실행될 대상을 다시 검증합니다.</span></h1></div>
+        <div id="identity" class="identity">로그인되지 않음</div>
       </header>
-      <section class="metrics" aria-label="release metrics">
-        <article><small>CONTROL STATE</small><strong id="metric-state">READY</strong><p>immutable deployment epoch</p></article>
-        <article><small>PIPELINE EVIDENCE</small><strong id="metric-pipeline">—</strong><p>GitLab verification status</p></article>
-        <article><small>FINGERPRINT MATCH</small><strong id="metric-match">—</strong><p>approval vs execution target</p></article>
+      <section class="metrics" aria-label="배포 상태">
+        <article><small>제어 상태</small><strong id="metric-state">READY</strong><p>immutable deployment epoch</p></article>
+        <article><small>파이프라인 증거</small><strong id="metric-pipeline">—</strong><p>GitLab 검증 상태</p></article>
+        <article><small>FINGERPRINT 일치</small><strong id="metric-match">—</strong><p>승인 대상과 실제 실행 대상 비교</p></article>
       </section>
 
       <div class="view active" data-view-panel="release">
         <section class="grid">
           <article class="panel primary">
-            <div class="panel-head"><div><small>DEMO WORKFLOW</small><h2>Stale approval rehearsal</h2></div><span class="badge">TOCTOU GUARD</span></div>
+            <div class="panel-head"><div><small>데모 워크플로</small><h2>승인 이후 변경 차단 시나리오</h2></div><span class="badge">TOCTOU GUARD</span></div>
             <div class="steps">
-              <button id="boot" class="step"><span>1</span><div><b>Create immutable epoch</b><small>commit + digest + config hash</small></div></button>
-              <button id="approve" class="step" disabled><span>2</span><div><b>Approve exact fingerprint</b><small>separate human approver role</small></div></button>
-              <button id="capability" class="step" disabled><span>3</span><div><b>Issue scoped capability</b><small>epoch + actor + env + action + fingerprint + expiry</small></div></button>
-              <button id="drift" class="step danger" disabled><span>4</span><div><b>Inject artifact drift</b><small>simulate change after approval</small></div></button>
-              <button id="execute" class="step" disabled><span>5</span><div><b>Agent execute with final re-check</b><small>Gin validates capability before live identity</small></div></button>
+              <button id="boot" class="step"><span>1</span><div><b>Immutable epoch 생성</b><small>commit + digest + config hash</small></div></button>
+              <button id="approve" class="step" disabled><span>2</span><div><b>정확한 fingerprint 승인</b><small>별도 사람 승인자 역할</small></div></button>
+              <button id="capability" class="step" disabled><span>3</span><div><b>Scoped capability 발급</b><small>epoch + actor + env + action + fingerprint + expiry</small></div></button>
+              <button id="drift" class="step danger" disabled><span>4</span><div><b>Artifact drift 주입</b><small>승인 이후 변경 상황 재현</small></div></button>
+              <button id="execute" class="step" disabled><span>5</span><div><b>Agent 실행 + 최종 재검증</b><small>Gin이 capability와 live identity를 순서대로 검증</small></div></button>
             </div>
-            <div id="result" class="result muted">Run the workflow to generate an execution receipt.</div>
+            <div id="result" class="result muted">워크플로를 실행하면 execution receipt가 생성됩니다.</div>
           </article>
           <article class="panel">
-            <div class="panel-head"><div><small>DEPLOYMENT IDENTITY</small><h2>Expected vs observed</h2></div></div>
-            <div id="diffs" class="diffs"><div class="empty">No execution yet.</div></div>
+            <div class="panel-head"><div><small>배포 IDENTITY</small><h2>승인값과 관찰값 비교</h2></div></div>
+            <div id="diffs" class="diffs"><div class="empty">아직 실행 기록이 없습니다.</div></div>
           </article>
         </section>
         <section class="panel architecture">
-          <div class="panel-head"><div><small>SERVICE BOUNDARIES</small><h2>Python orchestrates. Go decides at the edge.</h2></div></div>
-          <div class="flow"><div><b>GitLab</b><small>pipeline hook</small></div><i>→</i><div><b>FastAPI</b><small>orchestration · JWT · upload</small></div><i>→</i><div><b>PostgreSQL</b><small>epoch · approval · receipt</small></div><i>→</i><div class="accent"><b>Go Executor</b><small>final immutable re-check</small></div></div>
+          <div class="panel-head"><div><small>서비스 경계</small><h2>Python은 오케스트레이션하고, Go는 실행 경계에서 결정합니다.</h2></div></div>
+          <div class="flow"><div><b>GitLab</b><small>pipeline hook</small></div><i>→</i><div><b>FastAPI</b><small>오케스트레이션 · JWT · 업로드</small></div><i>→</i><div><b>PostgreSQL</b><small>epoch · approval · receipt</small></div><i>→</i><div class="accent"><b>Go Executor</b><small>최종 immutable 재검증</small></div></div>
         </section>
       </div>
 
       <div class="view" data-view-panel="policy">
         <section class="panel">
-          <div class="panel-head"><div><small>POLICY DRY-RUN</small><h2>Simulate agent authority before execution</h2></div><span class="badge">ALLOW · ASK · DENY</span></div>
-          <p class="supporting">The simulator uses the same deterministic policy engine that gates capability issuance. Dry-run never mutates deployment state.</p>
+          <div class="panel-head"><div><small>정책 DRY-RUN</small><h2>실행 전 Agent 권한을 시뮬레이션</h2></div><span class="badge">ALLOW · ASK · DENY</span></div>
+          <p class="supporting">실제 capability 발급에 사용하는 동일한 deterministic policy engine을 사용합니다. Dry-run은 배포 상태를 변경하지 않습니다.</p>
           <div class="integration-cards" id="policy-scenarios">
-            <article class="integration-card"><div class="integration-top"><strong>Staging deploy</strong><button class="ghost policy-run" data-env="staging" data-action="deploy">Simulate</button></div><div class="integration-line"><span>expected</span><b>ALLOW</b></div><div class="policy-result muted">Not evaluated.</div></article>
-            <article class="integration-card"><div class="integration-top"><strong>Production deploy</strong><button class="ghost policy-run" data-env="prod" data-action="deploy">Simulate</button></div><div class="integration-line"><span>expected</span><b>ASK</b></div><div class="policy-result muted">Not evaluated.</div></article>
-            <article class="integration-card"><div class="integration-top"><strong>Production delete</strong><button class="ghost policy-run" data-env="prod" data-action="delete">Simulate</button></div><div class="integration-line"><span>expected</span><b>DENY</b></div><div class="policy-result muted">Not evaluated.</div></article>
+            <article class="integration-card"><div class="integration-top"><strong>Staging 배포</strong><button class="ghost policy-run" data-env="staging" data-action="deploy">시뮬레이션</button></div><div class="integration-line"><span>예상 결과</span><b>ALLOW</b></div><div class="policy-result muted">아직 평가하지 않았습니다.</div></article>
+            <article class="integration-card"><div class="integration-top"><strong>Production 배포</strong><button class="ghost policy-run" data-env="prod" data-action="deploy">시뮬레이션</button></div><div class="integration-line"><span>예상 결과</span><b>ASK</b></div><div class="policy-result muted">아직 평가하지 않았습니다.</div></article>
+            <article class="integration-card"><div class="integration-top"><strong>Production 삭제</strong><button class="ghost policy-run" data-env="prod" data-action="delete">시뮬레이션</button></div><div class="integration-line"><span>예상 결과</span><b>DENY</b></div><div class="policy-result muted">아직 평가하지 않았습니다.</div></article>
           </div>
         </section>
       </div>
 
       <div class="view" data-view-panel="passport">
         <section class="panel">
-          <div class="panel-head"><div><small>AGENT GOVERNANCE</small><h2>Change Passport</h2></div><button id="passport-refresh" class="ghost" type="button">Refresh</button></div>
-          <p class="supporting">One audit surface connects why the change exists, which actor requested it, what immutable release was approved, and what the execution boundary actually observed.</p>
-          <div id="passport-epoch" class="epoch-context">Create an epoch first.</div>
-          <div id="passport-summary" class="passport-grid"><div class="empty">No change passport yet.</div></div>
+          <div class="panel-head"><div><small>AGENT 거버넌스</small><h2>변경 패스포트</h2></div><button id="passport-refresh" class="ghost" type="button">새로고침</button></div>
+          <p class="supporting">왜 이 변경이 생겼는지, 누가 요청했는지, 무엇을 승인했는지, 실행 경계가 실제로 무엇을 관찰했는지를 한 화면에서 연결합니다.</p>
+          <div id="passport-epoch" class="epoch-context">먼저 epoch를 생성하세요.</div>
+          <div id="passport-summary" class="passport-grid"><div class="empty">아직 변경 패스포트가 없습니다.</div></div>
         </section>
         <section class="panel architecture">
-          <div class="panel-head"><div><small>APPEND-ONLY AUDIT</small><h2>Change timeline</h2></div><span class="badge">WHY → EXECUTION</span></div>
-          <div id="passport-timeline" class="timeline"><div class="empty">No governance events yet.</div></div>
+          <div class="panel-head"><div><small>APPEND-ONLY 감사 기록</small><h2>변경 타임라인</h2></div><span class="badge">WHY → EXECUTION</span></div>
+          <div id="passport-timeline" class="timeline"><div class="empty">아직 거버넌스 이벤트가 없습니다.</div></div>
         </section>
       </div>
 
       <div class="view" data-view-panel="evidence">
         <section class="grid evidence-grid">
           <article class="panel">
-            <div class="panel-head"><div><small>ARTIFACT EVIDENCE</small><h2>Attach immutable build evidence</h2></div><span class="badge">SHA-256</span></div>
-            <p class="supporting">Evidence is stored against the selected deployment epoch. The backend bounds upload size, strips path traversal from filenames, and records a SHA-256 digest.</p>
-            <div id="evidence-epoch" class="epoch-context">Create an epoch first.</div>
+            <div class="panel-head"><div><small>ARTIFACT 증거</small><h2>Immutable build evidence 첨부</h2></div><span class="badge">SHA-256</span></div>
+            <p class="supporting">선택한 deployment epoch에 evidence를 저장합니다. 백엔드는 업로드 크기를 제한하고 파일명 경로를 정규화하며 SHA-256 digest를 기록합니다.</p>
+            <div id="evidence-epoch" class="epoch-context">먼저 epoch를 생성하세요.</div>
             <form id="evidence-form" class="upload-form">
-              <label>Kind<input id="evidence-kind" name="kind" value="provenance" maxlength="40" required /></label>
-              <label>Evidence file<input id="evidence-file" name="file" type="file" required /></label>
-              <button id="evidence-upload" class="action" type="submit" disabled>Upload & hash evidence</button>
+              <label>종류<input id="evidence-kind" name="kind" value="provenance" maxlength="40" required /></label>
+              <label>증거 파일<input id="evidence-file" name="file" type="file" required /></label>
+              <button id="evidence-upload" class="action" type="submit" disabled>업로드 후 해시 계산</button>
             </form>
-            <div id="evidence-result" class="result muted">No upload attempted.</div>
+            <div id="evidence-result" class="result muted">아직 업로드하지 않았습니다.</div>
           </article>
           <article class="panel">
-            <div class="panel-head"><div><small>VERIFIED FILES</small><h2>Evidence ledger</h2></div><button id="evidence-refresh" class="ghost" type="button">Refresh</button></div>
-            <div id="evidence-list" class="records"><div class="empty">No evidence attached.</div></div>
+            <div class="panel-head"><div><small>검증된 파일</small><h2>Evidence ledger</h2></div><button id="evidence-refresh" class="ghost" type="button">새로고침</button></div>
+            <div id="evidence-list" class="records"><div class="empty">첨부된 evidence가 없습니다.</div></div>
           </article>
         </section>
       </div>
 
       <div class="view" data-view-panel="receipts">
         <section class="panel">
-          <div class="panel-head"><div><small>EXECUTION AUDIT</small><h2>Execution receipts</h2></div><button id="receipts-refresh" class="ghost" type="button">Refresh</button></div>
-          <p class="supporting">Every terminal execution stores the approved fingerprint, independently observed fingerprint, outcome, latency, and reason. Reusing the same idempotency key returns the same receipt.</p>
-          <div id="receipts-epoch" class="epoch-context">Create an epoch first.</div>
-          <div id="receipts-list" class="records receipt-records"><div class="empty">No execution receipts yet.</div></div>
+          <div class="panel-head"><div><small>실행 감사</small><h2>Execution receipt</h2></div><button id="receipts-refresh" class="ghost" type="button">새로고침</button></div>
+          <p class="supporting">최종 실행마다 승인 fingerprint, 독립적으로 관찰한 fingerprint, 결과, latency, 이유를 저장합니다. 같은 idempotency key를 다시 사용하면 두 번째 실행이 아니라 같은 receipt를 반환합니다.</p>
+          <div id="receipts-epoch" class="epoch-context">먼저 epoch를 생성하세요.</div>
+          <div id="receipts-list" class="records receipt-records"><div class="empty">아직 execution receipt가 없습니다.</div></div>
         </section>
       </div>
 
       <div class="view" data-view-panel="integrations">
         <section class="panel">
-          <div class="panel-head"><div><small>RUNTIME BOUNDARIES</small><h2>Connected backend surfaces</h2></div><button id="integrations-refresh" class="ghost" type="button">Refresh</button></div>
-          <p class="supporting">This view reports the runtime contract honestly: what is configured and executed versus what exists only as an interface contract.</p>
-          <div id="integration-cards" class="integration-cards"><div class="empty">Loading integration status…</div></div>
+          <div class="panel-head"><div><small>RUNTIME 경계</small><h2>연결된 백엔드 구성</h2></div><button id="integrations-refresh" class="ghost" type="button">새로고침</button></div>
+          <p class="supporting">설정만 존재하는지, 실제 실행 중인지 구분해 현재 runtime 상태를 그대로 보여줍니다.</p>
+          <div id="integration-cards" class="integration-cards"><div class="empty">연동 상태를 불러오는 중입니다…</div></div>
         </section>
         <section class="panel architecture">
-          <div class="panel-head"><div><small>TRUST CHAIN</small><h2>Evidence enters once. Execution verifies again.</h2></div></div>
+          <div class="panel-head"><div><small>신뢰 체인</small><h2>증거는 한 번 들어오고, 실행은 다시 검증합니다.</h2></div></div>
           <div class="flow"><div><b>GitLab</b><small>token + pipeline SHA</small></div><i>→</i><div><b>FastAPI</b><small>JWT/RBAC + immutable epoch</small></div><i>→</i><div><b>PostgreSQL</b><small>durable audit state</small></div><i>→</i><div class="accent"><b>Go Executor</b><small>HMAC + observed target</small></div></div>
         </section>
       </div>
