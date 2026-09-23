@@ -97,10 +97,10 @@ class LocalExecutorClient:
         diffs = diff_identity(expected, observed)
         if expected_fp != observed_fp:
             outcome = "DENIED_STALE"
-            reason = "execution target changed after approval: " + ", ".join(d["field"] for d in diffs)
+            reason = "승인 이후 실행 대상이 변경되었습니다: " + ", ".join(d["field"] for d in diffs)
         else:
             outcome = "EXECUTED"
-            reason = "approved deployment identity matches live target"
+            reason = "승인된 deployment identity와 live target이 일치합니다."
         return ExecutorResult(outcome, observed_fp, reason, int((time.perf_counter()-started)*1000), diffs)
 
 
