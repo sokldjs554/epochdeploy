@@ -83,34 +83,34 @@ func VerifyCapability(secret, token string, expected CapabilityExpectation, now 
 	var claims CapabilityClaims
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return claims, errors.New("invalid capability token")
+		return claims, errors.New("유효하지 않은 capability token입니다.")
 	}
 	headerBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return claims, errors.New("invalid capability header")
+		return claims, errors.New("capability header가 유효하지 않습니다.")
 	}
 	var header map[string]any
 	if err := json.Unmarshal(headerBytes, &header); err != nil || header["alg"] != "HS256" {
-		return claims, errors.New("unsupported capability algorithm")
+		return claims, errors.New("지원하지 않는 capability 알고리즘입니다.")
 	}
 	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {
-		return claims, errors.New("invalid capability signature")
+		return claims, errors.New("capability 서명이 유효하지 않습니다.")
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write([]byte(parts[0] + "." + parts[1]))
 	if !hmac.Equal(signature, mac.Sum(nil)) {
-		return claims, errors.New("invalid capability signature")
+		return claims, errors.New("capability 서명이 유효하지 않습니다.")
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil || json.Unmarshal(payload, &claims) != nil {
-		return claims, errors.New("invalid capability payload")
+		return claims, errors.New("capability payload가 유효하지 않습니다.")
 	}
 	if claims.Ver != 1 || claims.Typ != "epochdeploy-capability" || claims.JTI == "" {
-		return claims, errors.New("unsupported capability token")
+		return claims, errors.New("지원하지 않는 capability token입니다.")
 	}
 	if claims.Exp <= now.Unix() {
-		return claims, errors.New("capability expired")
+		return claims, errors.New("capability가 만료되었습니다.")
 	}
 	checks := []struct {
 		name string
@@ -127,7 +127,7 @@ func VerifyCapability(secret, token string, expected CapabilityExpectation, now 
 	}
 	for _, check := range checks {
 		if check.got != check.want {
-			return claims, errors.New("capability scope mismatch: " + check.name)
+			return claims, errors.New("capability scope가 일치하지 않습니다: " + check.name)
 		}
 	}
 	return claims, nil
@@ -148,11 +148,11 @@ func ValidateAgentExecutionCapability(secret string, expected core.Identity, exe
 		return nil
 	}
 	if exec.Action != "deploy" || exec.CapabilityToken == "" {
-		return errors.New("AI agent execution requires a scoped deploy capability")
+		return errors.New("AI Agent 실행에는 scoped deploy capability가 필요합니다.")
 	}
 	expectedFP := core.Fingerprint(expected)
 	if exec.ApprovedFingerprint != expectedFP {
-		return errors.New("capability approved fingerprint does not match expected release")
+		return errors.New("capability의 approved fingerprint가 expected release와 일치하지 않습니다.")
 	}
 	_, err := VerifyCapability(
 		secret,
