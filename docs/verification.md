@@ -1,210 +1,287 @@
-# Verification log
+# 검증 기록
 
-Verification date: 2026-09-21 (Asia/Seoul)
+검증 기준일: 2026-09-23 (Asia/Seoul)
 
-This document records only checks actually executed against the current repository state. Source presence is not counted as runtime verification.
+이 문서는 **실제로 실행한 검증만** 기록합니다. 코드나 설정 파일이 존재한다는 이유만으로 실행 검증으로 간주하지 않습니다.
 
-## Full local verification
+## 1. 로컬 전체 검증
 
-Before the stage-4 gRPC runtime switch, `scripts/verify-local.sh` completed successfully **three consecutive times** on the local HTTP-reference path.
+gRPC runtime 전환 전 로컬 HTTP reference 경로에서 `scripts/verify-local.sh`를 **3회 연속** 성공시켰습니다.
 
-Each successful full round performed:
+각 회차에서 다음을 실행했습니다.
 
 - `python -m compileall -q orchestrator`
 - `node --check orchestrator/app/static/app.js`
-- `gofmt -l executor` (must return no files)
+- `gofmt -l executor` 결과가 비어 있는지 확인
 - `go vet ./...`
 - `go test -race -count=1 ./...`
-- `python -m pytest` -> **44 passed** at that local pre-gRPC checkpoint
-- build a Python wheel from `pyproject.toml`, install it into an isolated target, import `app.main`, and verify packaged static assets
-- build a fresh Go executor binary
-- assert the dedicated verification ports are unused before starting services, preventing a stale process from satisfying health checks
-- start Go and FastAPI as separate processes with signed HTTP transport
-- verify both `/healthz` endpoints and confirm both newly spawned PIDs remain alive
-- send an unsigned executor request and require **HTTP 401**
-- fetch the actual dashboard HTML and JavaScript and syntax-check the served JavaScript
-- execute the end-to-end smoke script **three times per full round**
+- 당시 Python regression suite 전체 통과
+- `pyproject.toml`로 wheel을 만들고 격리된 target에 실제 설치
+- 설치된 package에서 `app.main` import 및 static asset 포함 여부 확인
+- 새로운 Go executor binary build
+- 검증용 포트가 비어 있는지 확인해 stale process가 health check를 대신 통과하지 못하도록 차단
+- Go와 FastAPI를 별도 process로 실행
+- 두 `/healthz`와 방금 띄운 PID 생존 확인
+- unsigned executor request가 **HTTP 401**인지 확인
+- dashboard HTML/JavaScript 실제 fetch + JavaScript syntax 확인
+- 한 회차마다 smoke flow 3회 실행
 
-The smoke script verifies both:
+Smoke flow는 다음 두 경로를 확인합니다.
 
-1. exact approved identity -> `EXECUTED`
-2. artifact digest changed after approval -> `DENIED_STALE`
+1. 승인 identity와 live target이 같음 → `EXECUTED`
+2. 승인 후 artifact digest 변경 → `DENIED_STALE`
 
-Result: the latest candidate state has three consecutive full verification passes and **nine end-to-end smoke repetitions**.
+## 2. Docker / PostgreSQL 원격 검증
 
-## Remote Docker/PostgreSQL verification
+GitHub-hosted `Remote Verification`에서 실제 Docker Compose와 PostgreSQL 경로를 실행했습니다.
 
-A supplementary GitHub pull-request workflow (`Remote Verification`) was then executed against the synchronized repository. Its first complete run (`35595521040`) finished with both jobs successful:
+검증 내용:
 
-- **unit-and-package:** project installation, all **29 Python tests**, Python package build, `go vet`, `go test -race -count=1 ./...`, and JavaScript syntax check.
-- **compose-postgres-smoke:** `docker compose config`, image build/start, PostgreSQL 16 readiness, existence of the `deployment_epochs` table in the live PostgreSQL database, and **three repeated two-service smoke rounds**, followed by clean teardown.
+- Docker image build/start
+- PostgreSQL 16 readiness
+- 실제 PostgreSQL database에 `deployment_epochs` table 존재 확인
+- FastAPI + Go/Gin 별도 서비스 기동
+- 반복 smoke 3회
+- clean teardown
 
-This closes the earlier runtime gap for Docker Compose and the PostgreSQL-backed application path. It does **not** substitute for an actual GitLab Runner execution, and it is not a production capacity benchmark.
+이 검증은 실제 GitLab Runner 실행을 대신한다고 주장하지 않습니다. GitLab CI 계약은 별도로 `.gitlab-ci.yml`에 유지합니다.
 
-## Browser E2E verification
+## 3. 브라우저 E2E
 
-After the service-style navigation was made functional, `scripts/browser-e2e.py` completed successfully **three consecutive times** against freshly started FastAPI + Go processes. Each round used Chromium and exercised the actual UI JavaScript and real backend APIs:
+`scripts/browser-e2e.py`는 Chromium에서 실제 UI JavaScript와 backend API를 사용합니다.
 
-1. create epoch -> approve -> execute -> `EXECUTED` / `MATCH`;
-2. open **Evidence**, upload a real multipart provenance file, and verify its SHA-256 ledger entry;
-3. open **Execution Receipts** and verify the stored happy-path receipt;
-4. open **Integrations** and verify GitLab, executor, database, and the then-current gRPC integration status;
-5. create a fresh epoch -> approve -> mutate artifact digest -> execute -> `DENIED_STALE` / `BLOCKED` with an `artifact_digest` diff;
-6. reopen **Execution Receipts** and verify the blocked receipt.
+검증 흐름:
 
-Each round produced seven screenshots. Across all three rounds there were **zero browser console errors, page errors, failed requests, or HTTP 4xx/5xx responses** during the UI flow. The sandbox's managed Chromium blocks top-level localhost navigation, so the E2E runner has a documented fallback: it loads the exact repository HTML/CSS/JS in-memory and proxies browser fetch/XHR requests to the real local FastAPI service. On unrestricted runners it navigates to the served page directly.
+1. Release Control에서 epoch 생성
+2. production policy에 필요한 승인 수행
+3. scoped capability 발급
+4. 정상 실행 → `EXECUTED / MATCH`
+5. **Policy Simulator**에서 `ALLOW / ASK / DENY` 확인
+6. **Change Passport**에서 WHY / WHO / policy / approval / capability / execution 확인
+7. **Evidence**에서 실제 multipart file upload와 SHA-256 ledger 확인
+8. **Execution Receipts**에서 저장된 receipt 확인
+9. **Integrations**에서 실제 executor/database/gRPC runtime 확인
+10. 새 epoch에서 artifact drift 주입
+11. 실행 → `DENIED_STALE / BLOCKED`
+12. receipt와 Change Passport에서 차단 기록 확인
 
-### Remote Chromium evidence
+브라우저 검증에서는 console error, page error, failed request, 예상하지 않은 HTTP 4xx/5xx를 확인합니다.
 
-GitHub-hosted `Remote Verification` run **#5** (run id `35608531620`) independently exercised the same update on the production-shaped Compose path and completed both jobs successfully:
+## 4. Agent Governance / Change Passport
 
-- **unit-and-package:** all **31 Python tests**, package build, `go vet`, `go test -race -count=1 ./...`, and JavaScript syntax check.
-- **compose-postgres-smoke:** Docker image build/start, PostgreSQL 16 runtime/schema check, three two-service smoke rounds, Chromium installation, and the complete browser E2E flow above.
-- the workflow uploaded the seven remote Chromium screenshots as artifact `epochdeploy-browser-e2e` (artifact id `10643117861`, SHA-256 `4673c87a596e030a20cab636a149393fe972d69f1553ca0004bc3eaca6c1043d`).
+Agent-originated change는 다음 정보를 보존합니다.
 
-The downloaded remote artifact was inspected after the run. Evidence, Integrations, and stale-approval screens rendered without clipping or layout breakage; the Integrations view reported the live database backend as `postgresql`, and the stale flow visibly showed `DENIED_STALE` / `BLOCKED` with the approved-vs-observed artifact digest difference.
+- 변경 이유: `WHY`
+- Agent actor: `WHO`
+- human requester
+- project / environment / action
+- immutable release fingerprint
+- GitLab pipeline evidence
+- human approval
+- scoped capability
+- evidence attachment
+- terminal execution result
 
-## Agent Governance / Change Passport verification
+검증된 timeline 예시:
 
-Remote Verification run **#19** (run id `35721783280`) exercised the first governance expansion on the Gin + PostgreSQL Compose path.
+```text
+EPOCH_CREATED
+→ CHANGE_REQUESTED
+→ PIPELINE_VERIFIED
+→ POLICY_EVALUATED
+→ APPROVED
+→ CAPABILITY_ISSUED
+→ EVIDENCE_ATTACHED
+→ EXECUTED
+```
 
-- Python regression suite: **35 passed**. New coverage verifies AI-agent provenance, WHY/WHO preservation, the complete `EPOCH_CREATED → CHANGE_REQUESTED → PIPELINE_VERIFIED → APPROVED → EVIDENCE_ATTACHED → EXECUTED` sequence, idempotent approval audit behavior, and visible pipeline SHA rejection.
-- the production-shaped Compose job rebuilt the Gin executor, verified PostgreSQL, passed the repeated two-service smoke flow, and passed the expanded Chromium E2E.
-- Chromium now visits **Change Passport** in both happy and blocked releases and verifies `ISSUE-184`, `release-agent-01`, approval, `EXECUTED`, `DENIED_STALE`, and the append-only timeline.
-- downloaded screenshots were visually inspected; WHY / WHO / WHAT / APPROVAL / EVIDENCE / EXECUTION cards and the timeline render without clipping in both terminal states.
+차단 경로에서는 마지막이 `DENIED_STALE`로 기록됩니다.
 
-## Scoped Capability verification
+## 5. Scoped Capability 검증
 
-Stage-2 remote verification exercised short-lived agent capabilities across both FastAPI and the Gin execution boundary.
+AI Agent 실행 권한은 다음 scope에 묶입니다.
 
-- capability issuance is rejected before human approval and is limited to AI-agent-originated changes;
-- the capability scope binds `epoch_id + actor_type + actor_id + project + environment + action + fingerprint + exp`;
-- FastAPI rejects tampered, expired and cross-epoch tokens and checks the persisted grant is still active;
-- Gin independently verifies HS256 signature, expiry, actor/scope and that the token fingerprint matches the exact expected release;
-- Chromium E2E performs `Create → Approve → Issue Capability → Agent Execute` for both `EXECUTED` and `DENIED_STALE` flows;
-- Change Passport renders grant metadata and expiry but never stores or displays the raw capability token.
+```text
+epoch_id
+actor_type
+actor_id
+project
+environment
+action
+approved fingerprint
+expiry
+```
 
-The first complete capability run passed **40 Python tests**, stdlib Go tests, Gin lock/vet/race tests, Docker/PostgreSQL smoke and Chromium E2E. Verification also exposed a demo HMAC key shorter than the RFC 7518 SHA-256 recommendation; the default/example/Compose capability key was lengthened to at least 32 bytes before the final stage-2 run.
+검증 항목:
 
-## Policy dry-run / executable gate verification
+- 사람 승인이 필요한 policy에서 승인 전 capability 발급 차단
+- AI Agent-originated change에만 capability 발급
+- raw token은 DB/Passport에 저장하지 않고 grant metadata만 저장
+- tampered token 차단
+- expired token 차단
+- 다른 epoch로 token 재사용 차단
+- FastAPI에서 grant 상태 확인
+- Go/Gin executor에서 signature·expiry·scope 독립 재검증
 
-Stage-3 verification uses one deterministic policy engine for both simulation and real capability issuance.
+검증 과정에서 demo capability secret 길이가 SHA-256 HMAC 권고보다 짧은 문제를 발견했고, 기본값/example/Compose 값을 32바이트 이상으로 수정한 뒤 다시 검증했습니다.
 
-- `staging + deploy + ai_agent` → **ALLOW**: verified pipeline + scoped capability can execute without a human approval event.
-- `prod + deploy + ai_agent` → **ASK**: capability issuance is blocked until explicit human approval.
-- destructive actions such as `prod + delete` → **DENY**: no capability is issued even if an epoch was previously human-approved.
-- every real issuance attempt appends `POLICY_EVALUATED` to the Change Passport with decision, rule id and required controls.
-- the dry-run API has no deployment-state side effects and returns the same rule metadata used by issuance.
-- remote Chromium E2E exercises all three policy decisions before the normal production deployment flow.
+## 6. Policy Dry-run / 실제 실행 gate 검증
 
-Remote Verification run **#27** (run id `35751777137`) passed **44 Python tests**, package build, stdlib Go and Gin vet/race checks, Docker/PostgreSQL smoke, and the corrected Chromium E2E. The first browser attempt exposed an event-binding bug caused by JavaScript replacement-string `$` semantics; the stored source was corrected and byte-checked before the successful rerun. Screenshot artifact `epochdeploy-browser-e2e` (artifact id `10705148705`, SHA-256 `227551587b9eabe35d7eed3cd7064c2a8574bced6e0b05bf664e694c237f882e`) was visually inspected and shows ALLOW / ASK / DENY with rule ids, reasons, and required controls.
+동일한 deterministic policy engine을 simulation과 실제 capability 발급에 사용합니다.
 
-## Active gRPC transport verification
+| 시나리오 | 결정 | 의미 |
+|---|---|---|
+| AI Agent + staging deploy | `ALLOW` | verified pipeline + scoped capability로 진행 가능 |
+| AI Agent + production deploy | `ASK` | 명시적 사람 승인 필요 |
+| destructive action 예: production delete | `DENY` | 사람 승인이 있어도 capability 발급 금지 |
 
-Stage-4 Remote Verification run **#56** (run id `35758258511`) exercised the generated gRPC transport on the production-shaped Gin + PostgreSQL Compose path.
+실제 capability 발급 시마다 `POLICY_EVALUATED`가 Change Passport에 기록되며 decision, rule id, required controls를 저장합니다.
 
-- **grpc-codegen** regenerated Go and Python bindings from `proto/executor.proto`, ran `go mod tidy`, and passed a read-only zero-diff check against the checked-in generated files and module lock.
-- **unit-and-package** passed **47 Python tests**, Python package build, stdlib Go vet/race tests, and Gin + gRPC server vet/race tests. The gRPC tests cover unsigned metadata rejection, exact Observe/Execute, stale artifact blocking, valid scoped capability execution, and cross-epoch capability rejection. Python tests also lock deterministic protobuf HMAC metadata and execution-context mapping.
-- **compose-postgres-smoke** built the gRPC-enabled executor image, started PostgreSQL 16, FastAPI, Gin HTTP on 9080, and the gRPC executor on **9090**. PostgreSQL schema checks passed, then the repeated two-service smoke completed **3/3** successfully.
-- Chromium E2E completed successfully over that Compose stack. The downloaded Integrations screenshot visibly reports:
-  - Go Executor mode = `grpc`
-  - implementation = `gin`
-  - transport = `grpc`
-  - Database backend = `postgresql`
-  - gRPC Runtime = **ACTIVE**
-- Compose logs show `epochdeploy gRPC executor listening on :9090`, and the browser E2E ended with `browser e2e: PASS`.
-- screenshot artifact `epochdeploy-browser-e2e`: artifact id `10709005497`, SHA-256 `dd1f3ab301e0a4102cddac2108444bbbdb4d0b757b4596a36389e5c18abe320c`.
+Dry-run API는 배포 상태에 side effect를 만들지 않습니다.
 
-The verified service-to-service path is therefore no longer contract-only: FastAPI Observe/Execute calls use signed gRPC, while Gin HTTP remains an internal health/compatibility adapter sharing the same target store, capability verifier, and TOCTOU core.
+## 7. Gin 운영형 runtime 검증
 
-## Python/API coverage highlights
+운영형 Compose executor는 Gin adapter를 사용합니다.
 
-The 44 passing tests include:
+검증 항목:
 
-- JWT login and unauthenticated rejection
-- RBAC: operator cannot approve
-- security headers/CSP
-- strict immutable identity validation
-- client cannot forge `pipeline_status=success` when creating an epoch
-- approval blocked until a verified GitLab Pipeline Hook marks the matching commit successful
-- GitLab webhook token validation
-- GitLab commit-SHA mismatch blocks approval
-- duplicate webhook idempotency
-- webhook payload size limit
-- evidence upload hashing and path sanitization
-- evidence metadata bounds
-- authenticated evidence-ledger listing and metadata integrity
-- integration-status reporting without exposing configured secrets
-- exact-match execution
-- missing approval rejection
-- missing target observation rejection
-- commit/artifact/config drift rejection
-- terminal-state enforcement
-- execution idempotency and stale-diff replay
-- approval idempotency
-- executor observation failures mapped to a 502 boundary error
-- Python/Go shared fingerprint test vector
+- `go mod tidy` 후 module lock diff 0
+- `go vet`
+- `go test -race -count=1 ./...`
+- Docker image build/start
+- PostgreSQL과 함께 서비스 기동
+- Chromium E2E에서 `implementation=gin` 확인
 
-## Verified Gin production-shaped runtime
+Gin은 README에만 적어둔 키워드가 아니라 실제 Docker Compose 실행 경계입니다.
 
-Pull-request workflow run **#14** (run id `35686009639`) verified the Gin executor on the exact dependency lock committed to `executor-gin/go.mod` and `executor-gin/go.sum`.
+## 8. 실제 gRPC transport 검증
 
-- the **unit-and-package** job passed all **31 Python tests**, Python package build, stdlib Go `vet/race`, Gin module-lock stability (`go mod tidy` + zero diff), Gin `go vet`, Gin `go test -race -count=1 ./...`, and JavaScript syntax.
-- the **compose-postgres-smoke** job built and started the Gin executor image, started PostgreSQL 16 and FastAPI, verified the live PostgreSQL schema, passed three signed two-service smoke rounds, and passed the complete Chromium browser E2E.
-- the browser E2E required the Integrations view to report `implementation=gin`; that earlier artifact confirmed the then-current HTTP/Gin runtime before stage 4 replaced orchestrator→executor traffic with gRPC.
-- screenshot artifact `epochdeploy-browser-e2e`: artifact id `10676288669`, SHA-256 `e22a4ff19935a8e8ee476479aaa9638a9157da62674eeaa2bbd2a82b757f53ba`.
+Stage-4 최종 Remote Verification은 **run #57**, head `99a4a001e3609cc494c31f9fdf92146e2269ed10`에서 성공했습니다.
 
-This means Gin is no longer a keyword-only or source-only claim: it is the executor implementation used by the verified Docker Compose path.
+### gRPC codegen
 
-## Go boundary coverage highlights
+- `proto/executor.proto`에서 Go/Python binding 재생성
+- `go mod tidy`
+- checked-in generated code와 module lock에 대해 **diff 0**
+- generated binding 5개는 CI artifact 원본과 Git blob SHA까지 대조
 
-Go tests cover:
+### Python / Go 테스트
 
-- exact identity execution
-- commit drift fail-closed behavior
-- deterministic fingerprinting
-- the shared Python/Go fingerprint vector and canonical whitespace behavior
-- HMAC request authentication
-- body tamper rejection
-- stale timestamp rejection
-- independent target observation storage rather than caller-supplied observed identity at execute time
+최종 Python regression suite:
 
-The server also uses explicit read/write/header/idle timeouts and graceful SIGTERM shutdown.
+**47 passed**
 
-## Executor concurrency benchmark
+추가 gRPC coverage:
 
-Command: `python scripts/benchmark_executor.py`
+- unsigned gRPC metadata 거부
+- exact Observe/Execute → `EXECUTED`
+- stale artifact → `DENIED_STALE`
+- valid scoped capability 실행
+- cross-epoch capability 거부
+- Python deterministic protobuf HMAC metadata
+- execution context에서 capability/policy mapping
+- scope가 달라지면 signature가 달라지는지 확인
 
-Current workload: one signed target observation followed by 1,000 signed execution checks with concurrency 50. The Go boundary resolves the target from its own observation store for every execute request.
+Go/Gin/gRPC server는 `go vet`과 `go test -race`를 통과했습니다.
 
-| round | failures | throughput | p50 | p95 | p99 |
-|---|---:|---:|---:|---:|---:|
-| 1 | 0 | 556.6 req/s | 59.52 ms | 258.57 ms | 401.88 ms |
-| 2 | 0 | 614.2 req/s | 55.38 ms | 227.00 ms | 320.50 ms |
-| 3 | 0 | 585.5 req/s | 54.34 ms | 257.79 ms | 348.14 ms |
+### 실제 Compose gRPC 경로
 
-These are local-environment measurements, not production capacity claims.
+Compose에서:
 
-## Fixes found by verification rather than assumption
+- FastAPI
+- PostgreSQL 16
+- Gin HTTP adapter :9080
+- **gRPC executor :9090**
 
-The verification process itself exposed and fixed several issues:
+을 기동했습니다.
 
-- SQLite teardown originally reused pooled handles after the DB file was deleted.
-- FastAPI lifespan deprecation warning was removed.
-- the first verification script built Go from the wrong directory.
-- a stale old process on port 9080 could have made a new failed binary look healthy; verification now uses dedicated ports, asserts they are free, and checks the exact spawned PIDs.
-- Python trimmed identity fields before hashing while Go initially did not; both runtimes now share a fixed fingerprint vector.
-- epoch creation originally trusted caller-supplied pipeline status; it now always starts pending and only GitLab evidence can make it approvable.
-- the first service split let Python send both expected and observed values to Go; the Go boundary now owns the observed target and execute requests send only the approved expected identity.
-- executor traffic was initially unauthenticated; it now uses timestamped HMAC-SHA256 and rejects unsigned/tampered/stale requests.
-- UI diff rendering originally used `innerHTML`; it now builds DOM nodes with text content and ships CSP/security headers.
-- the PostgreSQL schema and service path used `pipeline_status=pending`, but the SQLAlchemy model default still said `success`; the ORM default is now `pending` and a direct-model regression test locks this invariant.
+FastAPI의 Observe/Execute는 `executor_mode=grpc`로 **실제 gRPC 9090**을 사용합니다.
 
-## Not yet verified in this environment
+요청 인증:
 
-These items are **not** claimed complete:
+```text
+HMAC-SHA256(
+  timestamp + "." +
+  RPC method + "." +
+  deterministic protobuf bytes
+)
+```
 
-- **PostgreSQL query-plan and database-lock contention analysis:** the PostgreSQL-backed Compose path is now remotely verified, but `EXPLAIN (ANALYZE, BUFFERS)` tuning and multi-writer lock-contention testing have not been run.
-- **Actual GitLab Runner execution:** `.gitlab-ci.yml` is present and structurally reviewed, but no runner is connected here. The successful GitHub-hosted workflow is supplementary validation, not a claim that GitLab CI itself ran.
-- **Kubernetes deployment:** intentionally deferred until the container path can be executed and verified.
-- **Remote GitHub repository:** `sokldjs554/epochdeploy` exists. The previous release was compared file-by-file against local Git blob SHAs before merge; this verification discipline remains the handoff requirement for the current UI/E2E update.
+Go unary interceptor가 같은 protobuf bytes를 다시 직렬화해 metadata signature와 30초 clock-skew를 확인합니다.
+
+### 최종 Compose / 브라우저 검증 결과
+
+- Docker build/start: 성공
+- PostgreSQL schema 확인: 성공
+- two-service smoke: **3/3 성공**
+- Chromium E2E: 성공
+- screenshot artifact upload: 성공
+- teardown: 성공
+
+최종 Integrations 화면에서 실제로 확인한 값:
+
+```text
+Go Executor
+  mode           = grpc
+  implementation = gin
+  transport      = grpc
+
+Database
+  backend = postgresql
+
+gRPC Runtime
+  status = ACTIVE
+```
+
+최종 screenshot artifact:
+
+- 이름: `epochdeploy-browser-e2e`
+- artifact id: `10711056411`
+- SHA-256: `232959fb8cfeab5910f25808b6ea415c1445cbe0bd6a495a42a9599380ef5e83`
+
+## 9. 검증 과정에서 실제로 발견해 수정한 문제
+
+완료 여부를 코드 존재만으로 판단하지 않았기 때문에 다음 문제를 실제로 발견했습니다.
+
+- SQLite teardown이 삭제된 DB 파일의 pooled handle을 재사용하던 문제
+- FastAPI lifespan deprecation 처리
+- 초기 검증 script가 잘못된 Go directory에서 build하던 문제
+- 오래된 9080 process가 새 binary의 실패를 가릴 수 있던 문제
+- Python과 Go fingerprint canonicalization 불일치
+- epoch 생성 API가 client의 `pipeline_status=success`를 신뢰할 수 있던 문제
+- FastAPI가 expected와 observed를 모두 Go에 전달하던 약한 신뢰 경계
+- executor traffic이 처음에는 인증되지 않았던 문제
+- UI diff rendering의 `innerHTML` 사용
+- PostgreSQL schema와 ORM의 pipeline default 불일치
+- Chromium headless / sandbox 정책 문제
+- decorative sidebar menu 문제
+- capability secret 길이 문제
+- JavaScript replacement-string의 `$` semantics로 event binding이 깨진 문제
+- gRPC codegen script executable permission 문제
+- CI bot generated binding push의 non-fast-forward 문제
+- 최신 grpc-go가 Go 1.25를 요구해 Go 1.23 프로젝트와 충돌한 문제 → **grpc-go v1.75.1 pin**
+
+## 10. 최종 merge 무결성
+
+Stage-4 PR #8 merge 후 변경된 **31개 파일 전부**를 merge 전 branch와 `main`의 Git blob SHA로 대조했습니다.
+
+결과:
+
+**31 / 31 일치**
+
+더 나아가 merge 전 branch와 merge 후 main의 전체 Git tree SHA가 동일했습니다.
+
+최종 main commit:
+
+`c84cce80016c62f6cb88849e68e6fb1459c2885f`
+
+## 11. 현재 의도적으로 남겨둔 검증 범위
+
+다음 항목은 과장하지 않고 아직 별도 확장 범위로 남깁니다.
+
+- PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)` 기반 query-plan tuning
+- 실제 multi-writer DB lock contention test
+- 실제 GitLab Runner에서 `.gitlab-ci.yml` 실행
+- Kubernetes 실제 배포
+
+이 항목들은 현재 지원용 프로젝트의 핵심 실행 경계가 미완성이라는 뜻이 아니라, 운영 확장 시 추가로 검증할 범위입니다.
